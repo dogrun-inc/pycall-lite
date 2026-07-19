@@ -14,7 +14,12 @@ export function setupPyCall(rubyVM: any, pyodide: any): void {
   // Expose isPyProxy helper on pyodide instance if it doesn't exist (e.g. in node environments)
   if (typeof pyodide.isPyProxy === "undefined") {
     pyodide.isPyProxy = (obj: any) => {
-      return pyodide.ffi && obj instanceof pyodide.ffi.PyProxy;
+      const ffi = pyodide.ffi;
+      if (!ffi || typeof ffi.PyProxy !== "function") {
+        return false;
+      }
+
+      return obj instanceof ffi.PyProxy;
     };
   }
 
