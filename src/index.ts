@@ -24,7 +24,7 @@ export function setupPyCall(rubyVM: any, pyodide: any): void {
   }
 
   // 1. Generate a unique VM ID and register it
-  const vmId = Math.random().toString(36).substring(2, 15);
+  const vmId = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).substring(2, 15);
   (globalThis as any).__pycall_pyodides__.set(vmId, pyodide);
 
   // 2. Evaluate the Ruby source code directly to define PyCall modules and classes.
