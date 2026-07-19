@@ -62,7 +62,23 @@ module PyCall
 
   def self.is_pyproxy?(obj)
     return false unless obj.is_a?(JS::Object)
-    pyodide.isPyProxy(obj) == true
+
+    detector = pyodide[:isPyProxy]
+    if detector.is_a?(JS::Object) && detector.typeof == 'function'
+      return detector.call(:call, pyodide, obj) == true
+    end
+
+    # Fallback for Pyodide versions that expose proxy classes only via pyodide.ffi.
+    ffi = pyodide[:ffi]
+    return false unless ffi.is_a?(JS::Object)
+
+    pyproxy_ctor = ffi[:PyProxy]
+    return false unless pyproxy_ctor.is_a?(JS::Object) && pyproxy_ctor.typeof == 'function'
+
+    pyproxy_proto = pyproxy_ctor[:prototype]
+    return false unless pyproxy_proto.is_a?(JS::Object)
+
+    JS.global[:Object][:prototype][:isPrototypeOf].call(:call, pyproxy_proto, obj) == true
   end
 
   # Performs basic Ruby-to-JS conversion used by delegated calls.
