@@ -12,6 +12,7 @@ module PyCall
   # @param vm_id [String] unique VM key managed by JavaScript
   def self.init_vm_id(vm_id)
     @vm_id = vm_id
+    @pyodide = nil
   end
 
   # Returns the Pyodide instance associated with this Ruby VM.
