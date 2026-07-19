@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pycall-lite Browser Smoke Test</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --ok: #0f766e;
+        --ng: #b91c1c;
+        --accent: #1d4ed8;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", "Noto Sans", sans-serif;
+        background: radial-gradient(circle at top right, #dbeafe, var(--bg));
+        color: var(--text);
+      }
+
+      .wrap {
+        max-width: 920px;
+        margin: 40px auto;
+        padding: 0 20px;
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        box-shadow: 0 12px 28px rgba(17, 24, 39, 0.08);
+        padding: 22px;
+      }
+
+      h1 {
+        margin-top: 0;
+        font-size: 1.4rem;
+      }
+
+      p {
+        color: var(--muted);
+      }
+
+      button {
+        border: 0;
+        border-radius: 10px;
+        background: var(--accent);
+        color: white;
+        padding: 10px 14px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+
+      pre {
+        margin-top: 16px;
+        padding: 12px;
+        border-radius: 10px;
+        background: #0f172a;
+        color: #e2e8f0;
+        overflow: auto;
+        min-height: 130px;
+      }
+
+      .ok {
+        color: var(--ok);
+        font-weight: 600;
+      }
+
+      .ng {
+        color: var(--ng);
+        font-weight: 600;
+      }
+    </style>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "@bjorn3/browser_wasi_shim": "../node_modules/@bjorn3/browser_wasi_shim/dist/index.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <h1>pycall-lite Browser Smoke Test</h1>
+        <p>
+          This page initializes Pyodide + Ruby.wasm, loads <code>lib/pycall.rb</code>,
+          and executes a few core checks.
+        </p>
+        <button id="run">Run Smoke Test</button>
+        <p id="summary"></p>
+        <pre id="log"></pre>
+      </section>
+    </main>
+
+    <script type="module">
+      import { DefaultRubyVM } from "../node_modules/@ruby/wasm-wasi/dist/esm/browser.js";
+      import { loadPyodide } from "../node_modules/pyodide/pyodide.mjs";
+
+      const $run = document.getElementById("run");
+      const $summary = document.getElementById("summary");
+      const $log = document.getElementById("log");
+
+      const log = (line) => {
+        $log.textContent += `${line}\n`;
+      };
+
+      async function initRubyVM() {
+        const wasmUrl = new URL(
+          "../node_modules/@ruby/3.3-wasm-wasi/dist/ruby+stdlib.wasm",
+          import.meta.url
+        );
+        const wasmBinary = await fetch(wasmUrl).then((r) => r.arrayBuffer());
+        const rubyModule = await WebAssembly.compile(wasmBinary);
+        return DefaultRubyVM(rubyModule, { consolePrint: false });
+      }
+
+      async function runSmokeTest() {
+        $summary.textContent = "";
+        $summary.className = "";
+        $log.textContent = "";
+        $run.disabled = true;
+
+        try {
+          log("[1/5] Loading Pyodide...");
+          const pyodide = await loadPyodide({
+            indexURL: new URL("../node_modules/pyodide/", import.meta.url).href,
+          });
+
+          log("[2/5] Loading Ruby.wasm...");
+          const { vm } = await initRubyVM();
+
+          log("[3/5] Loading lib/pycall.rb...");
+          const pycallRbUrl = new URL("../lib/pycall.rb", import.meta.url);
+          const pycallRb = await fetch(pycallRbUrl).then((r) => r.text());
+
+          globalThis.__pycall_pyodides__ ||= new Map();
+          const vmId =
+            globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+          globalThis.__pycall_pyodides__.set(vmId, pyodide);
+
+          vm.eval(pycallRb);
+          vm.eval(`
+            PyCall.init_vm_id("${vmId}")
+            unless $LOADED_FEATURES.include?("pycall.rb")
+              $LOADED_FEATURES << "pycall"
+              $LOADED_FEATURES << "pycall.rb"
+            end
+          `);
+
+          log("[4/5] Executing Ruby checks...");
+          await pyodide.runPythonAsync(`
+class Box:
+    def __init__(self):
+        self.value = 42
+
+box = Box()
+data = {"a": 1}
+`);
+
+          vm.eval(`
+            require "pycall"
+
+            math = PyCall.import_module("math")
+            sin_ok = (math.sin(math.pi / 2) == 1)
+
+            main = PyCall.import_module("__main__")
+            b = main.box
+            b.value = 100
+            attr_ok = (b.value == 100)
+
+            d = main.data
+            d["b"] = 2
+            index_ok = (d["b"] == 2)
+
+            JS.global[:smoke_results] = {
+              sin_ok: sin_ok,
+              attr_ok: attr_ok,
+              index_ok: index_ok
+            }
+          `);
+
+          const r = globalThis.smoke_results;
+          log(`[5/5] Results: ${JSON.stringify(r)}`);
+
+          const passed = r?.sin_ok && r?.attr_ok && r?.index_ok;
+          if (!passed) {
+            throw new Error("One or more smoke checks failed.");
+          }
+
+          $summary.textContent = "PASS: Browser smoke test completed successfully.";
+          $summary.className = "ok";
+        } catch (err) {
+          log(`ERROR: ${err?.stack || err}`);
+          $summary.textContent = "FAIL: Browser smoke test failed. See logs above.";
+          $summary.className = "ng";
+        } finally {
+          $run.disabled = false;
+        }
+      }
+
+      $run.addEventListener("click", runSmokeTest);
+    </script>
+  </body>
+</html>
