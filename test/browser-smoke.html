@@ -95,8 +95,8 @@
       <section class="card">
         <h1>pycall-lite Browser Smoke Test</h1>
         <p>
-          This page initializes Pyodide + Ruby.wasm, loads <code>lib/pycall.rb</code>,
-          and executes a few core checks.
+          This page initializes Pyodide + Ruby.wasm, loads <code>lib/pycall.rb</code>
+          and <code>lib/pycall/import.rb</code>, and executes core + macro API checks.
         </p>
         <button id="run">Run Smoke Test</button>
         <p id="summary"></p>
@@ -133,17 +133,19 @@
         $run.disabled = true;
 
         try {
-          log("[1/5] Loading Pyodide...");
+          log("[1/6] Loading Pyodide...");
           const pyodide = await loadPyodide({
             indexURL: new URL("../node_modules/pyodide/", import.meta.url).href,
           });
 
-          log("[2/5] Loading Ruby.wasm...");
+          log("[2/6] Loading Ruby.wasm...");
           const { vm } = await initRubyVM();
 
-          log("[3/5] Loading lib/pycall.rb...");
+          log("[3/6] Loading Ruby sources...");
           const pycallRbUrl = new URL("../lib/pycall.rb", import.meta.url);
           const pycallRb = await fetch(pycallRbUrl).then((r) => r.text());
+          const importRbUrl = new URL("../lib/pycall/import.rb", import.meta.url);
+          const importRb = await fetch(importRbUrl).then((r) => r.text());
 
           globalThis.__pycall_pyodides__ ||= new Map();
           const vmId =
@@ -152,14 +154,21 @@
 
           vm.eval(pycallRb);
           vm.eval(`
-            PyCall.init_vm_id("${vmId}")
             unless $LOADED_FEATURES.include?("pycall.rb")
               $LOADED_FEATURES << "pycall"
               $LOADED_FEATURES << "pycall.rb"
             end
           `);
+          vm.eval(importRb);
+          vm.eval(`
+            PyCall.init_vm_id("${vmId}")
+            unless $LOADED_FEATURES.include?("pycall/import.rb")
+              $LOADED_FEATURES << "pycall/import"
+              $LOADED_FEATURES << "pycall/import.rb"
+            end
+          `);
 
-          log("[4/5] Executing Ruby checks...");
+          log("[4/6] Preparing Python fixtures...");
           await pyodide.runPythonAsync(`
 class Box:
     def __init__(self):
@@ -169,8 +178,10 @@ box = Box()
 data = {"a": 1}
 `);
 
+          log("[5/6] Executing Ruby checks...");
           vm.eval(`
             require "pycall"
+            require "pycall/import"
 
             math = PyCall.import_module("math")
             sin_ok = (math.sin(math.pi / 2) == 1)
@@ -184,17 +195,37 @@ data = {"a": 1}
             d["b"] = 2
             index_ok = (d["b"] == 2)
 
+            module MacroSmoke
+              include PyCall::Import
+              pyimport :math
+              pyimport :json, as: :py_json
+              pyfrom :math, import: :cos
+            end
+
+            pyimport_ok = MacroSmoke.math.sqrt(9) == 3
+            pyimport_alias_ok = MacroSmoke.py_json.respond_to?(:dumps)
+            pyfrom_ok = MacroSmoke.cos(0) == 1
+
             JS.global[:smoke_results] = {
               sin_ok: sin_ok,
               attr_ok: attr_ok,
-              index_ok: index_ok
+              index_ok: index_ok,
+              pyimport_ok: pyimport_ok,
+              pyimport_alias_ok: pyimport_alias_ok,
+              pyfrom_ok: pyfrom_ok
             }
           `);
 
           const r = globalThis.smoke_results;
-          log(`[5/5] Results: ${JSON.stringify(r)}`);
+          log(`[6/6] Results: ${JSON.stringify(r)}`);
 
-          const passed = r?.sin_ok && r?.attr_ok && r?.index_ok;
+          const passed =
+            r?.sin_ok &&
+            r?.attr_ok &&
+            r?.index_ok &&
+            r?.pyimport_ok &&
+            r?.pyimport_alias_ok &&
+            r?.pyfrom_ok;
           if (!passed) {
             throw new Error("One or more smoke checks failed.");
           }
