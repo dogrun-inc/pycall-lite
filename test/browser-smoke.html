@@ -153,13 +153,15 @@
           globalThis.__pycall_pyodides__.set(vmId, pyodide);
 
           vm.eval(pycallRb);
-          vm.eval(importRb);
           vm.eval(`
-            PyCall.init_vm_id("${vmId}")
             unless $LOADED_FEATURES.include?("pycall.rb")
               $LOADED_FEATURES << "pycall"
               $LOADED_FEATURES << "pycall.rb"
             end
+          `);
+          vm.eval(importRb);
+          vm.eval(`
+            PyCall.init_vm_id("${vmId}")
             unless $LOADED_FEATURES.include?("pycall/import.rb")
               $LOADED_FEATURES << "pycall/import"
               $LOADED_FEATURES << "pycall/import.rb"

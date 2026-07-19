@@ -1,3 +1,5 @@
+require 'pycall'
+
 module PyCall
   module Import
     def self.included(mod)
@@ -5,39 +7,29 @@ module PyCall
     end
 
     def pyimport(mod_name, as: nil)
+      as = mod_name unless as
+      check_valid_module_variable_name(mod_name, as)
+
       mod = PyCall.import_module(mod_name)
-      method_name = as ? as.to_sym : mod_name.to_sym
-      
-      # Define method on the target (class, module, or Object)
-      target = self.is_a?(Module) ? self : self.class
-      
-      target.send(:define_method, method_name) do
+      define_singleton_method(as) do
         mod
       end
-      
-      if self.is_a?(Module)
-        begin
-          target.send(:module_function, method_name)
-        rescue => e
-          # Ignore if module_function is not supported on target
-        end
-      end
-      
+
       mod
     end
 
     def pyfrom(mod_name, import:)
       mod = PyCall.import_module(mod_name)
-      target = self.is_a?(Module) ? self : self.class
-
-      imports = case import
-                when Array
-                  import.map { |i| [i.to_sym, i.to_sym] }
-                when Hash
-                  import.map { |k, v| [k.to_sym, v.to_sym] }
-                else
-                  [[import.to_sym, import.to_sym]]
-                end
+      imports = Array(import).map do |import_name|
+        case import_name
+        when assoc_array_matcher
+          [import_name[0], import_name[1]]
+        when Symbol, String
+          [import_name, import_name]
+        else
+          raise ArgumentError, "wrong type of import name #{import_name.class} (expected String or Symbol)"
+        end
+      end
 
       imports.each do |name, alias_name|
         # Import the attribute object itself without invoking callable attributes.
@@ -46,19 +38,29 @@ module PyCall
                  else
                    mod.__send__(name)
                  end
-        target.send(:define_method, alias_name) do |*args|
+
+        define_singleton_method(alias_name) do |*args|
           if args.empty?
             py_obj
           else
             mod.__send__(name, *args)
           end
         end
-        if self.is_a?(Module)
-          begin
-            target.send(:module_function, alias_name)
-          rescue => e
-          end
-        end
+      end
+    end
+
+    private
+
+    def check_valid_module_variable_name(mod_name, var_name)
+      var_name = var_name.to_s if var_name.is_a?(Symbol)
+      if var_name.include?('.')
+        raise ArgumentError, "#{var_name} is not a valid module variable name, use pyimport #{mod_name}, as: <name>"
+      end
+    end
+
+    def assoc_array_matcher
+      @assoc_array_matcher ||= ->(ary) do
+        ary.is_a?(Array) && ary.length == 2
       end
     end
   end
