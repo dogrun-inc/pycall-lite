@@ -40,9 +40,18 @@ module PyCall
                 end
 
       imports.each do |name, alias_name|
-        py_obj = mod.__send__(name)
-        target.send(:define_method, alias_name) do
-          py_obj
+        # Import the attribute object itself without invoking callable attributes.
+        py_obj = if mod.is_a?(PyCall::PyObject)
+                   PyCall.wrap(mod.__js_obj__[name])
+                 else
+                   mod.__send__(name)
+                 end
+        target.send(:define_method, alias_name) do |*args|
+          if args.empty?
+            py_obj
+          else
+            mod.__send__(name, *args)
+          end
         end
         if self.is_a?(Module)
           begin
