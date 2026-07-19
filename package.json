@@ -1,0 +1,33 @@
+{
+  "name": "pycall-lite",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/embed_ruby.js && tsc",
+    "test": "vitest run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dogrun-inc/pycall-lite.git"
+  },
+  "keywords": ["ruby.wasm", "pyodide", "pycall"],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dogrun-inc/pycall-lite/issues"
+  },
+  "homepage": "https://github.com/dogrun-inc/pycall-lite#readme",
+  "dependencies": {
+    "@ruby/3.3-wasm-wasi": "^2.9.3-2.9.4",
+    "@ruby/wasm-wasi": "^2.9.3-2.9.4",
+    "pyodide": "^314.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
