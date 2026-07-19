@@ -89,6 +89,12 @@ module PyCall
     case val
     when PyCall::PyObject
       val.__js_obj__
+    when Array
+      js_arr = JS.global[:Array].new
+      val.each do |item|
+        js_arr.call(:push, ruby_to_js(item))
+      end
+      js_arr
     else
       val
     end
