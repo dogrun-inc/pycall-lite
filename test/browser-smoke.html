@@ -206,18 +206,55 @@ data = {"a": 1}
             pyimport_alias_ok = MacroSmoke.py_json.respond_to?(:dumps)
             pyfrom_ok = MacroSmoke.cos(0) == 1
 
+            # [Step 5] Type conversion tests
+            # Test Python-to-Ruby conversions (PyProxy objects accessed via [])
+            json_mod = PyCall.import_module(:json)
+            
+            # Test 1: Parse Python JSON and access nested structure
+            py_list = json_mod.loads("[1, 2, 3]")
+            array_access_ok = py_list[0] == 1 && py_list[1] == 2
+
+            # Test 2: Parse Python dict and access elements
+            py_dict = json_mod.loads('{"name": "test", "value": 42}')
+            dict_access_ok = py_dict["name"] == "test" && py_dict["value"] == 42
+
+            # Test 3: Boolean conversion from Python
+            json_true_str = json_mod.dumps(true)
+            py_bool = json_mod.loads("true")
+            bool_conversion_ok = py_bool == true
+
+            # Test 4: Null to nil conversion
+            py_null = json_mod.loads("null")
+            nil_conversion_ok = py_null == nil
+
+            # Test 5: Ruby primitives remain accessible
+            math_mod = PyCall.import_module(:math)
+            pi_val = math_mod.pi
+            primitive_ok = pi_val.is_a?(Float) && pi_val > 3.1 && pi_val < 3.2
+
+            # Test 6: Proc wrapping (basic structure check)
+            callback = proc { |x| x * 2 }
+            proc_wrap_ok = callback.is_a?(Proc)
+
             JS.global[:smoke_results] = {
               sin_ok: sin_ok,
               attr_ok: attr_ok,
               index_ok: index_ok,
               pyimport_ok: pyimport_ok,
               pyimport_alias_ok: pyimport_alias_ok,
-              pyfrom_ok: pyfrom_ok
+              pyfrom_ok: pyfrom_ok,
+              array_access_ok: array_access_ok,
+              dict_access_ok: dict_access_ok,
+              bool_conversion_ok: bool_conversion_ok,
+              nil_conversion_ok: nil_conversion_ok,
+              primitive_ok: primitive_ok,
+              proc_wrap_ok: proc_wrap_ok
             }
           `);
 
           const r = globalThis.smoke_results;
-          log(`[6/6] Results: ${JSON.stringify(r)}`);
+          log(`[6/6] Core API results: sin=${r?.sin_ok}, attr=${r?.attr_ok}, index=${r?.index_ok}, pyimport=${r?.pyimport_ok}, alias=${r?.pyimport_alias_ok}, pyfrom=${r?.pyfrom_ok}`);
+          log(`[7/7] Type conversion: array_access=${r?.array_access_ok}, dict_access=${r?.dict_access_ok}, bool=${r?.bool_conversion_ok}, nil=${r?.nil_conversion_ok}, primitive=${r?.primitive_ok}, proc=${r?.proc_wrap_ok}`);
 
           const passed =
             r?.sin_ok &&
@@ -225,12 +262,18 @@ data = {"a": 1}
             r?.index_ok &&
             r?.pyimport_ok &&
             r?.pyimport_alias_ok &&
-            r?.pyfrom_ok;
+            r?.pyfrom_ok &&
+            r?.array_access_ok &&
+            r?.dict_access_ok &&
+            r?.bool_conversion_ok &&
+            r?.nil_conversion_ok &&
+            r?.primitive_ok &&
+            r?.proc_wrap_ok;
           if (!passed) {
             throw new Error("One or more smoke checks failed.");
           }
 
-          $summary.textContent = "PASS: Browser smoke test completed successfully.";
+          $summary.textContent = "PASS: Browser smoke test completed successfully (Step 5 type conversion included).";
           $summary.className = "ok";
         } catch (err) {
           log(`ERROR: ${err?.stack || err}`);
