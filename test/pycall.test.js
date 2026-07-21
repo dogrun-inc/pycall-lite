@@ -102,9 +102,6 @@ def call_with_value(func, val):
     vm.eval(`
       require "pycall"
 
-      obj_class = PyCall.import_module(:builtins).dict
-      obj = obj_class.new
-
       # Attribute exercise on python-side object with writable value field
       demo_mod = PyCall.import_module(:types)
       ns = demo_mod.SimpleNamespace.new
