@@ -6,6 +6,21 @@ import { DefaultRubyVM } from "@ruby/wasm-wasi/dist/node";
 import { loadPyodide } from "pyodide";
 import { setupPyCall } from "../dist/index.js";
 
+let rubyModulePromise;
+
+async function getRubyModule() {
+  if (!rubyModulePromise) {
+    const wasmPath = path.resolve(
+      "node_modules/@ruby/3.3-wasm-wasi/dist/ruby+stdlib.wasm"
+    );
+    rubyModulePromise = fs
+      .readFile(wasmPath)
+      .then((binary) => WebAssembly.compile(binary));
+  }
+
+  return rubyModulePromise;
+}
+
 describe("pycall-lite core features", () => {
   let pyodide;
   let vm;
@@ -13,11 +28,7 @@ describe("pycall-lite core features", () => {
   beforeEach(async () => {
     pyodide = await loadPyodide();
 
-    const wasmPath = path.resolve(
-      "node_modules/@ruby/3.3-wasm-wasi/dist/ruby+stdlib.wasm"
-    );
-    const binary = await fs.readFile(wasmPath);
-    const module = await WebAssembly.compile(binary);
+    const module = await getRubyModule();
     const runtime = await DefaultRubyVM(module);
     vm = runtime.vm;
 
