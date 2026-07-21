@@ -6,6 +6,8 @@ require "open3"
 module WasmPycallRunner
   module_function
 
+  RESULT_PREFIX = "__PYCALL_RESULT__:"
+
   def run_ruby(code)
     js = <<~JS
       import fs from "node:fs/promises";
@@ -63,22 +65,22 @@ def echo(v):
         vm.eval(userCode);
 
         const out = globalThis.__rspec_result__;
-        console.log(JSON.stringify({ ok: true, out }));
+        console.log("#{RESULT_PREFIX}" + JSON.stringify({ ok: true, out }));
         process.exit(0);
       }
 
       main().catch((err) => {
         console.error(err && err.stack ? err.stack : String(err));
-        console.log(JSON.stringify({ ok: false, error: String(err) }));
+        console.log("#{RESULT_PREFIX}" + JSON.stringify({ ok: false, error: String(err) }));
         process.exit(1);
       });
     JS
 
     stdout, stderr, status = Open3.capture3("node", "--input-type=module", "--eval", js)
-    last_line = stdout.lines.map(&:strip).reject(&:empty?).last
+    result_line = stdout.lines.map(&:strip).find { |line| line.start_with?(RESULT_PREFIX) }
 
     begin
-      parsed = JSON.parse(last_line || "{}")
+      parsed = JSON.parse(result_line&.delete_prefix(RESULT_PREFIX) || "{}")
     rescue JSON::ParserError
       raise "Failed to parse runner output.\nSTDOUT:\n#{stdout}\nSTDERR:\n#{stderr}"
     end
