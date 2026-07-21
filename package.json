@@ -7,7 +7,9 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/embed_ruby.js && tsc",
-    "test": "vitest run"
+    "test:npm": "npm run build && node --test test/connection.test.js test/pycall.test.js",
+    "test:rspec": "npm run build && ruby -S rspec --format documentation",
+    "test": "npm run test:npm && npm run test:rspec"
   },
   "repository": {
     "type": "git",
