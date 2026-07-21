@@ -34,7 +34,11 @@ module PyCall
 
   # Converts JS/Pyodide values into Ruby-friendly values.
   #
-  # @param py_obj [Object] JavaScript-side value
+  # Supports unwrapping of Python objects (via PyProxy) and primitive types
+  # back to Ruby native types. Python collection types (list, dict, tuple)
+  # are preserved as PyObject for dynamic access via [] and method_missing.
+  #
+  # @param py_obj [Object] JavaScript-side value (PyProxy or primitive)
   # @return [Object, PyCall::PyObject, nil]
   def self.wrap(py_obj)
     return py_obj unless py_obj.is_a?(JS::Object)
@@ -82,7 +86,11 @@ module PyCall
     JS.global[:Object][:prototype][:isPrototypeOf].call(:call, pyproxy_proto, obj) == true
   end
 
-  # Performs basic Ruby-to-JS conversion used by delegated calls.
+  # Performs Ruby-to-JS/Python conversion for method calls.
+  #
+  # Handles Ruby native types (Symbol, Hash, Array, Proc/Block) and converts them
+  # to corresponding JS/Python equivalents. Proc/Block objects are wrapped as
+  # callable JS functions that can be passed to Python functions.
   #
   # @param val [Object] Ruby-side value
   # @return [Object] JavaScript-side value
@@ -90,15 +98,53 @@ module PyCall
     case val
     when PyCall::PyObject
       val.__js_obj__
+    when Symbol
+      val.to_s
+    when Hash
+      js_obj = JS.global[:Object].new
+      val.each do |k, v|
+        JS.global[:Reflect].call(:set, js_obj, k.to_s, ruby_to_js(v))
+      end
+      js_obj
     when Array
       js_arr = JS.global[:Array].new
-      val.each do |item|
-        js_arr.call(:push, ruby_to_js(item))
+      val.each do |v|
+        js_arr.call(:push, ruby_to_js(v))
       end
       js_arr
+    when Proc
+      # Wrap a Ruby Proc/Block as a Python-callable JS function.
+      # The wrapped function converts arguments and invokes the Proc.
+      create_js_callback(val)
+    when true
+      true
+    when false
+      false
+    when nil
+      nil
     else
       val
     end
+  end
+
+  # Wraps a Ruby Proc/Block as a JS function callable from Python.
+  #
+  # Creates a JS function wrapper that can be passed to Python functions.
+  # When invoked from Python, it converts arguments back to Ruby and calls the Proc.
+  #
+  # @param ruby_proc [Proc] Ruby block or Proc object
+  # @return [Object] JS function that invokes the Proc
+  def self.create_js_callback(ruby_proc)
+    # Expose the Proc as a JS callable via js gem
+    # The wrapper function converts JS/Python arguments to Ruby and calls the Proc
+    JS.global.call(:eval, %{
+      (function(proc) {
+        return function(...args) {
+          // Call the Ruby Proc with arguments; js gem handles conversion
+          return proc.call(...args);
+        };
+      })
+    }).call(:call, JS.global, ruby_proc)
   end
 
   # Wrapper around a Python object (typically a PyProxy).
