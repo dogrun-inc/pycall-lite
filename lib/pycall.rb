@@ -68,6 +68,10 @@ module PyCall
   def self.is_pyproxy?(obj)
     return false unless obj.is_a?(JS::Object)
 
+    # Fast-path heuristic for callable/type proxies (e.g. Python classes)
+    # that expose Pyodide-specific call helpers.
+    return true if obj[:callKwargs].typeof == 'function'
+
     detector = pyodide[:isPyProxy]
     if detector.is_a?(JS::Object) && detector.typeof == 'function'
       return detector.call(:call, pyodide, obj) == true
@@ -168,20 +172,29 @@ module PyCall
 
       # Prefer proxy-provided .new for Python type objects when available.
       begin
-        return PyCall.wrap(@__js_obj__.call(:new, *js_args))
+        return wrap_constructor_result(@__js_obj__.call(:new, *js_args))
       rescue StandardError
         # Fall through to callable-based construction.
       end
 
       # Some proxies expose constructor behavior only through callable .call.
       begin
-        return PyCall.wrap(@__js_obj__.call(:call, *js_args))
+        return wrap_constructor_result(@__js_obj__.call(:call, *js_args))
       rescue StandardError
         # Fall through to generic callable invocation.
       end
 
       # Fallback to generic callable invocation.
       call(*args)
+    end
+
+    def wrap_constructor_result(res)
+      wrapped = PyCall.wrap(res)
+      return wrapped unless res.is_a?(JS::Object) && !wrapped.is_a?(PyCall::PyObject)
+
+      # In some runtimes PyProxy detection can miss class instances.
+      # Constructor results should still behave as Python objects in Ruby.
+      PyCall::PyObject.new(res)
     end
 
     # Calls a Python callable object.
