@@ -16,7 +16,7 @@ RSpec.describe "pycall-lite (Ruby viewpoint)" do
   it "supports attribute get/set on Python objects" do
     out = WasmPycallRunner.run_ruby(<<~RUBY)
       require "pycall"
-      box_class = PyCall.wrap(PyCall.pyodide.globals.call(:get, "Box"))
+      box_class = PyCall.wrap(PyCall.pyodide[:globals].call(:get, "Box"))
       box = box_class.new
       before = box.value
       box.value = 100
