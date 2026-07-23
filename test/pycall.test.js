@@ -41,8 +41,8 @@ def echo(v):
 def call_with_value(func, val):
     return func(val)
 
-    class CallableHolder:
-      def __init__(self):
+class CallableHolder:
+    def __init__(self):
         self.fn = lambda x, y: x + y
 `);
   });
