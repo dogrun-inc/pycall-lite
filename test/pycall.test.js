@@ -44,6 +44,10 @@ def call_with_value(func, val):
 class CallableHolder:
     def __init__(self):
         self.fn = lambda x, y: x + y
+
+class NeedsArg:
+  def __init__(self, v):
+    self.value = v
 `);
   });
 
@@ -178,6 +182,19 @@ class CallableHolder:
       result = holder.fn(2, 5)
 
       JS.global[:testResult] = (result == 7)
+    `);
+
+    assert.equal(globalThis.testResult, true);
+  });
+
+  it("forwards constructor args through PyObject#new", () => {
+    vm.eval(`
+      require "pycall"
+
+      klass = PyCall.wrap(PyCall.pyodide[:globals].call(:get, "NeedsArg"))
+      obj = klass.new(123)
+
+      JS.global[:testResult] = (obj.value == 123)
     `);
 
     assert.equal(globalThis.testResult, true);
