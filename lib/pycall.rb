@@ -266,7 +266,7 @@ module PyCall
         if args.any? && prop.is_a?(JS::Object) && prop[:call].typeof == 'function'
           # Example: python_obj.callable_attr(args)
           js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
-          res = prop.call(:call, @__js_obj__, *js_args)
+          res = prop.call(:call, *js_args)
           PyCall.wrap(res)
         else
           PyCall.wrap(prop)
