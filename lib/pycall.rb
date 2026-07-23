@@ -168,24 +168,15 @@ module PyCall
     # @param args [Array<Object>] constructor arguments
     # @return [Object, PyCall::PyObject]
     def new(*args)
-      js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
-
-      # Prefer proxy-provided .new for Python type objects when available.
+      # Some proxies expose constructor behavior through callable invocation.
       begin
-        return wrap_constructor_result(@__js_obj__.call(:new, *js_args))
-      rescue StandardError
-        # Fall through to callable-based construction.
-      end
-
-      # Some proxies expose constructor behavior only through callable .call.
-      begin
-          return wrap_constructor_result(call(*args))
+        return wrap_constructor_result(call(*args))
       rescue StandardError
         # Fall through to generic callable invocation.
       end
 
       # Fallback to generic callable invocation.
-        wrap_constructor_result(call(*args))
+      wrap_constructor_result(call(*args))
     end
 
     def wrap_constructor_result(res)
