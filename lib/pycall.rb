@@ -179,13 +179,13 @@ module PyCall
 
       # Some proxies expose constructor behavior only through callable .call.
       begin
-        return wrap_constructor_result(@__js_obj__.call(:call, *js_args))
+          return wrap_constructor_result(call(*args))
       rescue StandardError
         # Fall through to generic callable invocation.
       end
 
       # Fallback to generic callable invocation.
-      call(*args)
+        wrap_constructor_result(call(*args))
     end
 
     def wrap_constructor_result(res)
