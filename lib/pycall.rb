@@ -206,15 +206,10 @@ module PyCall
 
       # Pyodide may expose callables either as actual JS functions or as
       # proxy objects that provide a .call method.
-      begin
-        res = @__js_obj__.call(:call, *js_args)
-        return PyCall.wrap(res)
-      rescue StandardError
-        # Fall through to JS function path.
-      end
-
       res = if @__js_obj__.typeof == 'function'
               JS.global[:Reflect].call(:apply, @__js_obj__, nil, js_args)
+            elsif @__js_obj__[:call].is_a?(JS::Object) && @__js_obj__[:call].typeof == 'function'
+              @__js_obj__.call(:call, *js_args)
             else
               raise TypeError, 'Python object is not callable'
             end
