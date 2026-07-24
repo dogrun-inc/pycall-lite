@@ -257,7 +257,7 @@ Main conversions:
 - `Symbol` -> `String`
 - `Hash` -> JS Object (used as dict-like data on the Python side)
 - `Array` -> JS Array
-- `Proc` -> JS callable callable from Python
+- `Proc` -> JS callable from Python
 
 Example:
 
