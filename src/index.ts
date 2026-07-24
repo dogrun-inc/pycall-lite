@@ -27,6 +27,15 @@ export function setupPyCall(rubyVM: any, pyodide: any): void {
   const vmId = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).substring(2, 15);
   (globalThis as any).__pycall_pyodides__.set(vmId, pyodide);
 
+  // Register a callback factory used by tests and future callback bridging.
+  if (typeof (globalThis as any).__pycall_make_callback__ !== "function") {
+    (globalThis as any).__pycall_make_callback__ = function (rubyProc: any) {
+      return function (...args: any[]) {
+        return rubyProc.call(...args);
+      };
+    };
+  }
+
   // 2. Evaluate the Ruby source code directly to define PyCall modules and classes.
   rubyVM.eval(pycallRb);
 

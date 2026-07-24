@@ -40,6 +40,14 @@ def echo(v):
 
 def call_with_value(func, val):
     return func(val)
+
+class CallableHolder:
+    def __init__(self):
+        self.fn = lambda x, y: x + y
+
+class NeedsArg:
+  def __init__(self, v):
+    self.value = v
 `);
   });
 
@@ -160,6 +168,33 @@ def call_with_value(func, val):
       callback = proc { |x| x * 2 }
       js_fn = PyCall.ruby_to_js(callback)
       JS.global[:testResult] = js_fn.is_a?(JS::Object) && js_fn.typeof == 'function'
+    `);
+
+    assert.equal(globalThis.testResult, true);
+  });
+
+  it("calls callable attributes without shifting arguments", () => {
+    vm.eval(`
+      require "pycall"
+
+      holder_class = PyCall.wrap(PyCall.pyodide[:globals].call(:get, "CallableHolder"))
+      holder = holder_class.new
+      result = holder.fn(2, 5)
+
+      JS.global[:testResult] = (result == 7)
+    `);
+
+    assert.equal(globalThis.testResult, true);
+  });
+
+  it("forwards constructor args through PyObject#new", () => {
+    vm.eval(`
+      require "pycall"
+
+      klass = PyCall.wrap(PyCall.pyodide[:globals].call(:get, "NeedsArg"))
+      obj = klass.new(123)
+
+      JS.global[:testResult] = (obj.value == 123)
     `);
 
     assert.equal(globalThis.testResult, true);

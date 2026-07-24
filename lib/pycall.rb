@@ -68,6 +68,10 @@ module PyCall
   def self.is_pyproxy?(obj)
     return false unless obj.is_a?(JS::Object)
 
+    # Fast-path heuristic for callable/type proxies (e.g. Python classes)
+    # that expose Pyodide-specific call helpers.
+    return true if obj[:callKwargs].typeof == 'function'
+
     detector = pyodide[:isPyProxy]
     if detector.is_a?(JS::Object) && detector.typeof == 'function'
       return detector.call(:call, pyodide, obj) == true
@@ -164,10 +168,24 @@ module PyCall
     # @param args [Array<Object>] constructor arguments
     # @return [Object, PyCall::PyObject]
     def new(*args)
-      # Instantiate a Python class (represented as a Callable JS object)
-      js_args = PyCall.ruby_to_js(args)
-      res = JS.global[:Reflect].call(:apply, @__js_obj__, nil, js_args)
-      PyCall.wrap(res)
+      # Some proxies expose constructor behavior through callable invocation.
+      begin
+        return wrap_constructor_result(call(*args))
+      rescue StandardError
+        # Fall through to generic callable invocation.
+      end
+
+      # Fallback to generic callable invocation.
+      wrap_constructor_result(call(*args))
+    end
+
+    def wrap_constructor_result(res)
+      wrapped = PyCall.wrap(res)
+      return wrapped unless res.is_a?(JS::Object) && !wrapped.is_a?(PyCall::PyObject)
+
+      # In some runtimes PyProxy detection can miss class instances.
+      # Constructor results should still behave as Python objects in Ruby.
+      PyCall::PyObject.new(res)
     end
 
     # Calls a Python callable object.
@@ -175,9 +193,18 @@ module PyCall
     # @param args [Array<Object>] call arguments
     # @return [Object, PyCall::PyObject]
     def call(*args)
-      # Call a Python function directly
       js_args = PyCall.ruby_to_js(args)
-      res = JS.global[:Reflect].call(:apply, @__js_obj__, nil, js_args)
+
+      # Pyodide may expose callables either as actual JS functions or as
+      # proxy objects that provide a .call method.
+      res = if @__js_obj__.typeof == 'function'
+              JS.global[:Reflect].call(:apply, @__js_obj__, nil, js_args)
+            elsif @__js_obj__[:call].is_a?(JS::Object) && @__js_obj__[:call].typeof == 'function'
+              @__js_obj__.call(:call, *js_args)
+            else
+              raise TypeError, 'Python object is not callable'
+            end
+
       PyCall.wrap(res)
     end
 
@@ -194,6 +221,17 @@ module PyCall
     def method_missing(name, *args, &block)
       name_str = name.to_s
 
+      # Constructor call: python_class.new(args)
+      if name == :new
+        js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
+
+        if @__js_obj__[:new].is_a?(JS::Object) && @__js_obj__[:new].typeof == 'function'
+          return PyCall.wrap(@__js_obj__.call(:new, *js_args))
+        end
+
+        return call(*args)
+      end
+
       # Property assignment: obj.attr = val
       if name_str.end_with?('=')
         prop_name = name_str[0...-1]
@@ -206,10 +244,15 @@ module PyCall
       prop = @__js_obj__[name]
 
       if prop.is_a?(JS::Object) && prop.typeof == 'function'
-        # Method execution
-        js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
-        res = @__js_obj__.call(name, *js_args)
-        PyCall.wrap(res)
+        # Distinguish attribute access from invocation for callable attributes
+        # (e.g. module.ClassName should return the class object itself).
+        if args.empty? && block.nil?
+          PyCall.wrap(prop)
+        else
+          js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
+          res = prop.call(:call, @__js_obj__, *js_args)
+          PyCall.wrap(res)
+        end
       else
         if args.any? && prop.is_a?(JS::Object) && prop[:call].typeof == 'function'
           # Example: python_obj.callable_attr(args)
