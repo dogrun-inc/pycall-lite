@@ -42,8 +42,8 @@ Recommended dependency versions:
 
 `pycall-lite` is available via unpkg and jsDelivr.
 
-- `https://cdn.jsdelivr.net/npm/pycall-lite@1.0.0/dist/index.js`
-- `https://unpkg.com/pycall-lite@1.0.0/dist/index.js`
+- `https://cdn.jsdelivr.net/npm/pycall-lite@0.1.0/dist/index.js`
+- `https://unpkg.com/pycall-lite@0.1.0/dist/index.js`
 
 If you use jsDelivr, add an import map like this in your HTML.
 Adjust library versions as needed.
@@ -52,7 +52,7 @@ Adjust library versions as needed.
 <script type="importmap">
 {
 	"imports": {
-		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@1.0.0/dist/index.js",
+		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.0/dist/index.js",
 		"@ruby/wasm-wasi/dist/esm/browser.js": "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.9.3-2.9.4/dist/esm/browser.js",
 		"@bjorn3/browser_wasi_shim": "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js",
 		"pyodide": "https://cdn.jsdelivr.net/npm/pyodide@314.0.2/pyodide.mjs"
@@ -108,7 +108,7 @@ This is a minimal example. Adjust import paths to match your project layout.
 <script type="importmap">
 {
 	"imports": {
-		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@1.0.0/dist/index.js",
+		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.0/dist/index.js",
 		"@ruby/wasm-wasi/dist/esm/browser.js": "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.9.3-2.9.4/dist/esm/browser.js",
 		"@bjorn3/browser_wasi_shim": "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js",
 		"pyodide": "https://cdn.jsdelivr.net/npm/pyodide@314.0.2/pyodide.mjs"
