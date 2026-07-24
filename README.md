@@ -77,7 +77,7 @@ npm install pycall-lite
 <script type="module">
 	import { DefaultRubyVM } from "./node_modules/@ruby/wasm-wasi/dist/esm/browser.js";
 	import { loadPyodide } from "./node_modules/pyodide/pyodide.mjs";
-	import { setupPyCall } from "./dist/index.js";
+	import { setupPyCall } from "./node_modules/pycall-lite/dist/index.js";
 
 	const pyodide = await loadPyodide({
 		indexURL: new URL("./node_modules/pyodide/", import.meta.url).href,
