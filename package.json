@@ -1,9 +1,16 @@
 {
   "name": "pycall-lite",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.1.0",
+  "description": "A PyCall-like bridge between Ruby.wasm and Pyodide for browser and Node.js",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist/*.js",
+    "dist/*.d.ts",
+    "README.md",
+    "README-ja.md",
+    "LICENSE"
+  ],
   "type": "module",
   "scripts": {
     "build": "node scripts/embed_ruby.js && tsc",
@@ -16,7 +23,7 @@
     "url": "git+https://github.com/dogrun-inc/pycall-lite.git"
   },
   "keywords": ["ruby.wasm", "pyodide", "pycall"],
-  "author": "",
+  "author": "Dogrun Inc.",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/dogrun-inc/pycall-lite/issues"
