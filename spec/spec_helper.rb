@@ -36,6 +36,13 @@ module WasmPycallRunner
 
         const pycallRb = await fs.readFile("lib/pycall.rb", "utf8");
         const importRb = await fs.readFile("lib/pycall/import.rb", "utf8");
+        const matplotlibRb = await fs.readFile("lib/matplotlib.rb", "utf8");
+        const matplotlibPyplotRb = await fs.readFile("lib/matplotlib/pyplot.rb", "utf8");
+
+        globalThis.__pycall_virtual_files__ = new Map([
+          ["matplotlib", matplotlibRb],
+          ["matplotlib/pyplot", matplotlibPyplotRb],
+        ]);
 
         vm.eval(pycallRb);
         vm.eval(`
@@ -61,6 +68,8 @@ class Box:
 def echo(v):
     return v
 `);
+
+  await pyodide.loadPackage("matplotlib");
 
         vm.eval(userCode);
 
