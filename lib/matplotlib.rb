@@ -42,10 +42,13 @@ module Matplotlib
   class Spine < PyCall::PyObject
   end
 
-  PyCall.register_python_type_mapping('matplotlib.axis', 'XAxis', Axis::XAxis)
-  PyCall.register_python_type_mapping('matplotlib.axis', 'YAxis', Axis::YAxis)
-  PyCall.register_python_type_mapping('matplotlib.spines', 'Spine', Spine)
-  PyCall.register_python_type_mapping('', 'XAxis', Axis::XAxis)
-  PyCall.register_python_type_mapping('', 'YAxis', Axis::YAxis)
-  PyCall.register_python_type_mapping('', 'Spine', Spine)
+  PyCall.register_python_type_mappings(
+    'matplotlib.axis' => {
+      'XAxis' => Axis::XAxis,
+      'YAxis' => Axis::YAxis
+    },
+    'matplotlib.spines' => {
+      'Spine' => Spine
+    }
+  )
 end

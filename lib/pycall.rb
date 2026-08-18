@@ -91,10 +91,16 @@ module PyCall
     JS.global[:Object][:prototype][:isPrototypeOf].call(:call, pyproxy_proto, obj) == true
   end
 
-  def self.register_python_type_mapping(python_module, python_name, ruby_class)
+  def self.register_python_type_mappings(mappings)
     @python_type_mappings ||= {}
-    key = python_module.to_s.empty? ? python_name.to_s : "#{python_module}.#{python_name}"
-    @python_type_mappings[key] = ruby_class
+
+    mappings.each do |python_module, type_mappings|
+      type_mappings.each do |python_name, ruby_class|
+        qualified_name = "#{python_module}.#{python_name}"
+        @python_type_mappings[qualified_name] = ruby_class
+        @python_type_mappings[python_name.to_s] = ruby_class
+      end
+    end
   end
 
   def self.python_type_mapping_for(obj)
