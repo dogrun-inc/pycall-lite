@@ -14,7 +14,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/embed_ruby.js && tsc",
-    "test:npm": "npm run build && node --test test/connection.test.js test/pycall.test.js",
+    "test:npm": "npm run build && node --test test/connection.test.js test/pycall.test.js test/matplotlib.test.js",
     "test:rspec": "npm run build && bundle exec rspec --format documentation",
     "test": "npm run test:npm && npm run test:rspec"
   },

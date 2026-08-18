@@ -133,19 +133,31 @@
         $run.disabled = true;
 
         try {
-          log("[1/6] Loading Pyodide...");
+          log("[1/9] Loading Pyodide...");
           const pyodide = await loadPyodide({
             indexURL: new URL("../node_modules/pyodide/", import.meta.url).href,
           });
 
-          log("[2/6] Loading Ruby.wasm...");
+          log("[2/9] Loading Ruby.wasm...");
           const { vm } = await initRubyVM();
 
-          log("[3/6] Loading Ruby sources...");
+          log("[3/9] Loading matplotlib Python package...");
+          await pyodide.loadPackage("matplotlib");
+
+          log("[4/9] Loading Ruby sources...");
           const pycallRbUrl = new URL("../lib/pycall.rb", import.meta.url);
           const pycallRb = await fetch(pycallRbUrl).then((r) => r.text());
           const importRbUrl = new URL("../lib/pycall/import.rb", import.meta.url);
           const importRb = await fetch(importRbUrl).then((r) => r.text());
+          const matplotlibRbUrl = new URL("../lib/matplotlib.rb", import.meta.url);
+          const matplotlibRb = await fetch(matplotlibRbUrl).then((r) => r.text());
+          const matplotlibPyplotRbUrl = new URL("../lib/matplotlib/pyplot.rb", import.meta.url);
+          const matplotlibPyplotRb = await fetch(matplotlibPyplotRbUrl).then((r) => r.text());
+
+          globalThis.__pycall_virtual_files__ = new Map([
+            ["matplotlib", matplotlibRb],
+            ["matplotlib/pyplot", matplotlibPyplotRb],
+          ]);
 
           globalThis.__pycall_pyodides__ ||= new Map();
           const vmId =
@@ -168,7 +180,7 @@
             end
           `);
 
-          log("[4/6] Preparing Python fixtures...");
+          log("[5/9] Preparing Python fixtures...");
           await pyodide.runPythonAsync(`
 class Box:
     def __init__(self):
@@ -178,7 +190,7 @@ box = Box()
 data = {"a": 1}
 `);
 
-          log("[5/6] Executing Ruby checks...");
+          log("[6/9] Executing Ruby checks...");
           vm.eval(`
             require "pycall"
             require "pycall/import"
@@ -236,6 +248,21 @@ data = {"a": 1}
             callback = proc { |x| x * 2 }
             proc_wrap_ok = callback.is_a?(Proc)
 
+            # [Step 8] matplotlib add-on checks
+            require "matplotlib/pyplot"
+
+            Matplotlib.use("Agg")
+            plt = Matplotlib::Pyplot
+            plt.plot([1, 2, 3], [4, 5, 6])
+            plt.title("pycall-lite smoke test", fontsize: 10)
+
+            backend_ok = (Matplotlib.invoke(:get_backend) == "Agg")
+
+            xkcd_active_inside = false
+            plt.xkcd { xkcd_active_inside = true }
+
+            matplotlib_ok = backend_ok && xkcd_active_inside
+
             JS.global[:smoke_results] = {
               sin_ok: sin_ok,
               attr_ok: attr_ok,
@@ -248,13 +275,15 @@ data = {"a": 1}
               bool_conversion_ok: bool_conversion_ok,
               nil_conversion_ok: nil_conversion_ok,
               primitive_ok: primitive_ok,
-              proc_wrap_ok: proc_wrap_ok
+              proc_wrap_ok: proc_wrap_ok,
+              matplotlib_ok: matplotlib_ok
             }
           `);
 
           const r = globalThis.smoke_results;
-          log(`[6/6] Core API results: sin=${r?.sin_ok}, attr=${r?.attr_ok}, index=${r?.index_ok}, pyimport=${r?.pyimport_ok}, alias=${r?.pyimport_alias_ok}, pyfrom=${r?.pyfrom_ok}`);
-          log(`[7/7] Type conversion: array_access=${r?.array_access_ok}, dict_access=${r?.dict_access_ok}, bool=${r?.bool_conversion_ok}, nil=${r?.nil_conversion_ok}, primitive=${r?.primitive_ok}, proc=${r?.proc_wrap_ok}`);
+          log(`[7/9] Core API results: sin=${r?.sin_ok}, attr=${r?.attr_ok}, index=${r?.index_ok}, pyimport=${r?.pyimport_ok}, alias=${r?.pyimport_alias_ok}, pyfrom=${r?.pyfrom_ok}`);
+          log(`[8/9] Type conversion: array_access=${r?.array_access_ok}, dict_access=${r?.dict_access_ok}, bool=${r?.bool_conversion_ok}, nil=${r?.nil_conversion_ok}, primitive=${r?.primitive_ok}, proc=${r?.proc_wrap_ok}`);
+          log(`[9/9] matplotlib add-on: matplotlib=${r?.matplotlib_ok}`);
 
           const passed =
             r?.sin_ok &&
@@ -268,12 +297,13 @@ data = {"a": 1}
             r?.bool_conversion_ok &&
             r?.nil_conversion_ok &&
             r?.primitive_ok &&
-            r?.proc_wrap_ok;
+            r?.proc_wrap_ok &&
+            r?.matplotlib_ok;
           if (!passed) {
             throw new Error("One or more smoke checks failed.");
           }
 
-          $summary.textContent = "PASS: Browser smoke test completed successfully (Step 5 type conversion included).";
+          $summary.textContent = "PASS: Browser smoke test completed successfully (Step 5 type conversion + matplotlib add-on included).";
           $summary.className = "ok";
         } catch (err) {
           log(`ERROR: ${err?.stack || err}`);
