@@ -151,6 +151,38 @@ module PyCall
     }).call(:call, JS.global, ruby_proc)
   end
 
+  # Splits a trailing Hash off +args+ to be treated as Python keyword arguments.
+  #
+  # @param args [Array<Object>]
+  # @return [Array(Array<Object>, Hash, nil)] positional args and kwargs (or nil)
+  def self.split_kwargs(args)
+    if !args.empty? && args.last.is_a?(Hash)
+      [args[0...-1], args.last]
+    else
+      [args, nil]
+    end
+  end
+
+  # Emulates Python's `with` statement for a context-manager object.
+  #
+  # @param ctx [PyCall::PyObject] Python context manager
+  # @yieldparam value [Object] the value returned by +__enter__+
+  # @return [Object] the block's return value
+  def self.with(ctx, &block)
+    entered = ctx.invoke(:__enter__)
+    python_none = pyodide[:globals].call(:get, 'None')
+
+    begin
+      result = block.call(entered)
+    rescue StandardError => e
+      suppressed = ctx.invoke(:__exit__, e.class.name, e.message, python_none)
+      raise unless suppressed
+    else
+      ctx.invoke(:__exit__, python_none, python_none, python_none)
+      result
+    end
+  end
+
   # Wrapper around a Python object (typically a PyProxy).
   #
   # Exposes dynamic property/method/index access from Ruby.
@@ -190,9 +222,20 @@ module PyCall
 
     # Calls a Python callable object.
     #
-    # @param args [Array<Object>] call arguments
+    # A trailing Hash is treated as Python keyword arguments and dispatched
+    # through Pyodide's callKwargs when available.
+    #
+    # @param args [Array<Object>] call arguments (a trailing Hash is treated as kwargs)
     # @return [Object, PyCall::PyObject]
     def call(*args)
+      positional, kwargs = PyCall.split_kwargs(args)
+
+      if kwargs && @__js_obj__[:callKwargs].is_a?(JS::Object) && @__js_obj__[:callKwargs].typeof == 'function'
+        js_positional = PyCall.ruby_to_js(positional)
+        js_kwargs = PyCall.ruby_to_js(kwargs)
+        return PyCall.wrap(@__js_obj__.call(:callKwargs, *js_positional, js_kwargs))
+      end
+
       js_args = PyCall.ruby_to_js(args)
 
       # Pyodide may expose callables either as actual JS functions or as
@@ -206,6 +249,30 @@ module PyCall
             end
 
       PyCall.wrap(res)
+    end
+
+    # Forces invocation of a named Python method, even with zero arguments,
+    # bypassing the argument-less "attribute vs. call" ambiguity used by
+    # {#method_missing}. Needed for protocol methods such as +__enter__+ and
+    # +__exit__+.
+    #
+    # @param name [Symbol, String] Python method name
+    # @param args [Array<Object>] call arguments (a trailing Hash is treated as kwargs)
+    # @return [Object, PyCall::PyObject]
+    def invoke(name, *args)
+      prop = @__js_obj__[name]
+      raise NoMethodError, "undefined python method `#{name}'" unless prop.is_a?(JS::Object) && prop.typeof == 'function'
+
+      positional, kwargs = PyCall.split_kwargs(args)
+
+      if kwargs && prop[:callKwargs].is_a?(JS::Object) && prop[:callKwargs].typeof == 'function'
+        js_positional = positional.map { |arg| PyCall.ruby_to_js(arg) }
+        js_kwargs = PyCall.ruby_to_js(kwargs)
+        return PyCall.wrap(prop.call(:callKwargs, *js_positional, js_kwargs))
+      end
+
+      js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
+      PyCall.wrap(prop.call(:call, @__js_obj__, *js_args))
     end
 
     # Handles dynamic property and method access.
@@ -249,15 +316,33 @@ module PyCall
         if args.empty? && block.nil?
           PyCall.wrap(prop)
         else
-          js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
-          res = prop.call(:call, @__js_obj__, *js_args)
+          positional, kwargs = PyCall.split_kwargs(args)
+
+          if kwargs && prop[:callKwargs].is_a?(JS::Object) && prop[:callKwargs].typeof == 'function'
+            js_positional = positional.map { |arg| PyCall.ruby_to_js(arg) }
+            js_kwargs = PyCall.ruby_to_js(kwargs)
+            res = prop.call(:callKwargs, *js_positional, js_kwargs)
+          else
+            js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
+            res = prop.call(:call, @__js_obj__, *js_args)
+          end
+
           PyCall.wrap(res)
         end
       else
         if args.any? && prop.is_a?(JS::Object) && prop[:call].typeof == 'function'
           # Example: python_obj.callable_attr(args)
-          js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
-          res = prop.call(:call, *js_args)
+          positional, kwargs = PyCall.split_kwargs(args)
+
+          if kwargs && prop[:callKwargs].is_a?(JS::Object) && prop[:callKwargs].typeof == 'function'
+            js_positional = positional.map { |arg| PyCall.ruby_to_js(arg) }
+            js_kwargs = PyCall.ruby_to_js(kwargs)
+            res = prop.call(:callKwargs, *js_positional, js_kwargs)
+          else
+            js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
+            res = prop.call(:call, *js_args)
+          end
+
           PyCall.wrap(res)
         else
           PyCall.wrap(prop)
@@ -307,6 +392,32 @@ module PyCall
     # @return [String]
     def inspect
       "#<PyCall::PyObject #{@__js_obj__.call(:toString).to_s}>"
+    end
+  end
+end
+
+# Lazily evaluates embedded Ruby sources registered on the JS side (see
+# `__pycall_virtual_files__`), enabling `require "matplotlib"`-style loading
+# of optional add-ons without eagerly executing them at PyCall setup time.
+module Kernel
+  unless method_defined?(:__pycall_lite_original_require__)
+    alias_method :__pycall_lite_original_require__, :require
+  end
+
+  def require(name)
+    key = name.to_s
+    registry = JS.global[:__pycall_virtual_files__]
+
+    if registry.is_a?(JS::Object) && registry.typeof == 'object' && registry.call(:has, key) == true
+      return false if $LOADED_FEATURES.include?(key)
+
+      source = registry.call(:get, key).to_s
+      eval(source)
+      $LOADED_FEATURES << key
+      $LOADED_FEATURES << "#{key}.rb" unless key.end_with?('.rb')
+      true
+    else
+      __pycall_lite_original_require__(key)
     end
   end
 end

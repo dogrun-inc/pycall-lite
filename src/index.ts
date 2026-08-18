@@ -1,9 +1,18 @@
-import { pycallRb, importRb } from "./ruby_code.js";
+import { pycallRb, importRb, matplotlibRb, matplotlibPyplotRb } from "./ruby_code.js";
 
 // Initialize global pyodides Map
 if (!(globalThis as any).__pycall_pyodides__) {
   (globalThis as any).__pycall_pyodides__ = new Map();
 }
+
+// Registry of optional add-on Ruby sources loadable via `require "..."` from
+// Ruby, evaluated lazily instead of at setup time (see lib/pycall.rb's
+// Kernel#require override).
+if (!(globalThis as any).__pycall_virtual_files__) {
+  (globalThis as any).__pycall_virtual_files__ = new Map<string, string>();
+}
+(globalThis as any).__pycall_virtual_files__.set("matplotlib", matplotlibRb);
+(globalThis as any).__pycall_virtual_files__.set("matplotlib/pyplot", matplotlibPyplotRb);
 
 /**
  * Sets up pycall-lite on the given RubyVM instance, connecting it with the Pyodide instance.
