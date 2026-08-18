@@ -30,4 +30,22 @@ module Matplotlib
     rescue StandardError
       nil
     end
+
+  module Axis
+    class XAxis < PyCall::PyObject
+    end
+
+    class YAxis < PyCall::PyObject
+    end
+  end
+
+  class Spine < PyCall::PyObject
+  end
+
+  PyCall.register_python_type_mapping('matplotlib.axis', 'XAxis', Axis::XAxis)
+  PyCall.register_python_type_mapping('matplotlib.axis', 'YAxis', Axis::YAxis)
+  PyCall.register_python_type_mapping('matplotlib.spines', 'Spine', Spine)
+  PyCall.register_python_type_mapping('', 'XAxis', Axis::XAxis)
+  PyCall.register_python_type_mapping('', 'YAxis', Axis::YAxis)
+  PyCall.register_python_type_mapping('', 'Spine', Spine)
 end

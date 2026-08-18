@@ -58,7 +58,8 @@ module PyCall
       py_obj.to_s == 'true'
     else
       if is_pyproxy?(py_obj)
-        PyCall::PyObject.new(py_obj)
+        mapped_class = python_type_mapping_for(py_obj)
+        mapped_class ? mapped_class.new(py_obj) : PyCall::PyObject.new(py_obj)
       else
         py_obj
       end
@@ -88,6 +89,19 @@ module PyCall
     return false unless pyproxy_proto.is_a?(JS::Object)
 
     JS.global[:Object][:prototype][:isPrototypeOf].call(:call, pyproxy_proto, obj) == true
+  end
+
+  def self.register_python_type_mapping(python_module, python_name, ruby_class)
+    @python_type_mappings ||= {}
+    key = python_module.to_s.empty? ? python_name.to_s : "#{python_module}.#{python_name}"
+    @python_type_mappings[key] = ruby_class
+  end
+
+  def self.python_type_mapping_for(obj)
+    python_type = obj[:type].to_s
+    @python_type_mappings && @python_type_mappings[python_type]
+  rescue StandardError
+    nil
   end
 
   # Performs Ruby-to-JS/Python conversion for method calls.
