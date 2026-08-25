@@ -33,6 +33,15 @@ describe("pycall-lite error handling", () => {
     vm = runtime.vm;
 
     setupPyCall(vm, pyodide);
+
+    await pyodide.runPythonAsync(`
+  def raise_value_error():
+    raise ValueError("from call")
+
+  class RaisingIndex:
+    def __getitem__(self, key):
+      raise ValueError("from index")
+  `);
   });
 
   afterEach(() => {
@@ -131,6 +140,73 @@ describe("pycall-lite error handling", () => {
           js_error.is_a?(JS::Object) &&
           !PyCall.python_error?(RuntimeError.new("not a python error"))
         )
+      end
+    `);
+
+    assert.equal(globalThis.testResult, true);
+  });
+
+  it("automatically wraps errors raised while importing a Python module", () => {
+    vm.eval(`
+      require "pycall"
+
+      begin
+        PyCall.import_module("module_that_does_not_exist")
+        JS.global[:testResult] = false
+      rescue => error
+        JS.global[:testResult] = error.is_a?(PyCall::PythonError)
+      end
+    `);
+
+    assert.equal(globalThis.testResult, true);
+  });
+
+  it("automatically wraps errors raised by PyObject#call", () => {
+    vm.eval(`
+      require "pycall"
+
+      raiser = PyCall.wrap(PyCall.pyodide[:globals].call(:get, "raise_value_error"))
+
+      begin
+        raiser.call
+        JS.global[:testResult] = false
+      rescue => error
+        JS.global[:testResult] = error.is_a?(PyCall::PythonError)
+      end
+    `);
+
+    assert.equal(globalThis.testResult, true);
+  });
+
+  it("automatically wraps errors raised by dynamic method calls", () => {
+    vm.eval(`
+      require "pycall"
+
+      math = PyCall.import_module(:math)
+
+      begin
+        math.sqrt(-1)
+        JS.global[:testResult] = false
+      rescue => error
+        JS.global[:testResult] = error.is_a?(PyCall::PythonError)
+      end
+    `);
+
+    assert.equal(globalThis.testResult, true);
+  });
+
+  it("automatically wraps errors raised by Python object index access", () => {
+    vm.eval(`
+      require "pycall"
+
+      klass = PyCall.wrap(PyCall.pyodide[:globals].call(:get, "RaisingIndex"))
+      values = klass.new
+
+      begin
+        values["key"]
+        JS.global[:testResult] = false
+      rescue => error
+        JS.global[:testResult] = error.is_a?(PyCall::PythonError)
       end
     `);
 
