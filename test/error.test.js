@@ -57,7 +57,7 @@ describe("pycall-lite error handling", () => {
           !wrapped.value.nil? &&
           !wrapped.traceback.nil? &&
           wrapped.message.include?("ValueError") &&
-          wrapped.original_error.equal?(raw_error)
+          wrapped.original_error.is_a?(JS::Error)
         )
       end
     `);
@@ -124,7 +124,7 @@ describe("pycall-lite error handling", () => {
         math.sqrt(-1)
         JS.global[:testResult] = false
       rescue => raw_error
-        js_error = PyCall.unwrap_js_error(raw_error)
+        js_error = PyCall.unwrap_js_error(raw_error.original_error)
 
         JS.global[:testResult] = (
           PyCall.python_error?(raw_error) &&

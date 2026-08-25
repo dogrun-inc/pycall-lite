@@ -28,8 +28,10 @@ module PyCall
   # @param mod_name [String, Symbol] Python module name
   # @return [Object, PyCall::PyObject]
   def self.import_module(mod_name)
-    py_mod = pyodide.pyimport(mod_name.to_s)
-    wrap(py_mod)
+    with_error_handling do
+      py_mod = pyodide.pyimport(mod_name.to_s)
+      wrap(py_mod)
+    end
   end
 
   # Converts JS/Pyodide values into Ruby-friendly values.
@@ -193,19 +195,21 @@ module PyCall
     # @param args [Array<Object>] call arguments
     # @return [Object, PyCall::PyObject]
     def call(*args)
-      js_args = PyCall.ruby_to_js(args)
+      PyCall.with_error_handling do
+        js_args = PyCall.ruby_to_js(args)
 
-      # Pyodide may expose callables either as actual JS functions or as
-      # proxy objects that provide a .call method.
-      res = if @__js_obj__.typeof == 'function'
-              JS.global[:Reflect].call(:apply, @__js_obj__, nil, js_args)
-            elsif @__js_obj__[:call].is_a?(JS::Object) && @__js_obj__[:call].typeof == 'function'
-              @__js_obj__.call(:call, *js_args)
-            else
-              raise TypeError, 'Python object is not callable'
-            end
+        # Pyodide may expose callables either as actual JS functions or as
+        # proxy objects that provide a .call method.
+        res = if @__js_obj__.typeof == 'function'
+                JS.global[:Reflect].call(:apply, @__js_obj__, nil, js_args)
+              elsif @__js_obj__[:call].is_a?(JS::Object) && @__js_obj__[:call].typeof == 'function'
+                @__js_obj__.call(:call, *js_args)
+              else
+                raise TypeError, 'Python object is not callable'
+              end
 
-      PyCall.wrap(res)
+        PyCall.wrap(res)
+      end
     end
 
     # Handles dynamic property and method access.
@@ -219,6 +223,12 @@ module PyCall
     # @param args [Array<Object>]
     # @return [Object, PyCall::PyObject]
     def method_missing(name, *args, &block)
+      PyCall.with_error_handling do
+        method_missing_without_error_handling(name, *args, &block)
+      end
+    end
+
+    def method_missing_without_error_handling(name, *args, &block)
       name_str = name.to_s
 
       # Constructor call: python_class.new(args)
@@ -274,10 +284,12 @@ module PyCall
     # @param key [Object]
     # @return [Object, PyCall::PyObject]
     def [](key)
-      if @__js_obj__[:get].typeof == 'function'
-        PyCall.wrap(@__js_obj__.call(:get, PyCall.ruby_to_js(key)))
-      else
-        PyCall.wrap(@__js_obj__[key])
+      PyCall.with_error_handling do
+        if @__js_obj__[:get].typeof == 'function'
+          PyCall.wrap(@__js_obj__.call(:get, PyCall.ruby_to_js(key)))
+        else
+          PyCall.wrap(@__js_obj__[key])
+        end
       end
     end
 
@@ -287,10 +299,12 @@ module PyCall
     # @param val [Object]
     # @return [Object] assigned value
     def []=(key, val)
-      if @__js_obj__[:set].typeof == 'function'
-        @__js_obj__.call(:set, PyCall.ruby_to_js(key), PyCall.ruby_to_js(val))
-      else
-        JS.global[:Reflect].call(:set, @__js_obj__, key.to_s, PyCall.ruby_to_js(val))
+      PyCall.with_error_handling do
+        if @__js_obj__[:set].typeof == 'function'
+          @__js_obj__.call(:set, PyCall.ruby_to_js(key), PyCall.ruby_to_js(val))
+        else
+          JS.global[:Reflect].call(:set, @__js_obj__, key.to_s, PyCall.ruby_to_js(val))
+        end
       end
       val
     end

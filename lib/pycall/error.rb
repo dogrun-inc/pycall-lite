@@ -68,6 +68,8 @@ module PyCall
   # @param error [Object] error caught in Ruby (typically a `JS::Error`)
   # @return [Boolean]
   def self.python_error?(error)
+    return true if error.is_a?(PythonError)
+
     js_error = unwrap_js_error(error)
     return false unless js_error
 
@@ -185,8 +187,17 @@ module PyCall
   # @param error [Object] error caught in Ruby
   # @return [Object] a {PyCall::PythonError}, or +error+ unchanged
   def self.wrap_error(error)
+    return error if error.is_a?(PythonError)
     return error unless python_error?(error)
 
     PythonError.capture(error) || error
+  end
+
+  # Converts Python-origin errors at a Ruby/JS boundary and preserves others.
+  def self.with_error_handling
+    yield
+  rescue StandardError => error
+    wrapped = wrap_error(error)
+    raise wrapped.equal?(error) ? error : wrapped
   end
 end
