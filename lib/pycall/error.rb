@@ -145,7 +145,10 @@ module PyCall
   #
   # @return [void]
   def self.ensure_python_error_capture_helper!
-    return if @python_error_capture_helper_defined
+    # Checks the instance itself instead of caching a Ruby-side flag, since a
+    # flag can't track which Pyodide instance it was actually defined for.
+    existing = pyodide[:globals].call(:get, PYTHON_ERROR_CAPTURE_FN)
+    return if existing.is_a?(JS::Object) && existing.typeof == 'function'
 
     pyodide.call(:runPython, <<~PY)
       def #{PYTHON_ERROR_CAPTURE_FN}():
@@ -164,8 +167,6 @@ module PyCall
               ),
           }
     PY
-
-    @python_error_capture_helper_defined = true
   end
 
   # Returns whether +obj+ is JS `null`/`undefined` (or Ruby `nil`).
