@@ -198,6 +198,7 @@ module PyCall
     yield
   rescue StandardError => error
     wrapped = wrap_error(error)
-    raise wrapped.equal?(error) ? error : wrapped
+    raise if wrapped.equal?(error)
+    raise wrapped
   end
 end
