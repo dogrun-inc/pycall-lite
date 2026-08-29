@@ -1,6 +1,6 @@
 {
   "name": "pycall-lite",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A PyCall-like bridge between Ruby.wasm and Pyodide for browser and Node.js",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

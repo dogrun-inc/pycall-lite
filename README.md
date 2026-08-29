@@ -42,8 +42,8 @@ Recommended dependency versions:
 
 `pycall-lite` is available via unpkg and jsDelivr.
 
-- `https://cdn.jsdelivr.net/npm/pycall-lite@0.1.0/dist/index.js`
-- `https://unpkg.com/pycall-lite@0.1.0/dist/index.js`
+- `https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js`
+- `https://unpkg.com/pycall-lite@0.1.1/dist/index.js`
 
 If you use jsDelivr, add an import map like this in your HTML.
 Adjust library versions as needed.
@@ -52,7 +52,7 @@ Adjust library versions as needed.
 <script type="importmap">
 {
 	"imports": {
-		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.0/dist/index.js",
+		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js",
 		"@ruby/wasm-wasi/dist/esm/browser.js": "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.9.3-2.9.4/dist/esm/browser.js",
 		"@bjorn3/browser_wasi_shim": "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js",
 		"pyodide": "https://cdn.jsdelivr.net/npm/pyodide@314.0.2/pyodide.mjs"
@@ -108,7 +108,7 @@ This is a minimal example. Adjust import paths to match your project layout.
 <script type="importmap">
 {
 	"imports": {
-		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.0/dist/index.js",
+		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js",
 		"@ruby/wasm-wasi/dist/esm/browser.js": "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.9.3-2.9.4/dist/esm/browser.js",
 		"@bjorn3/browser_wasi_shim": "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js",
 		"pyodide": "https://cdn.jsdelivr.net/npm/pyodide@314.0.2/pyodide.mjs"
@@ -274,6 +274,33 @@ converted = PyCall.ruby_to_js(payload)
 - Preferred callable syntax is `obj.call(...)` rather than `obj.(...)`.
 - Full keyword argument compatibility (`x: 1`) is not guaranteed.
 - `without_gvl` and Python executable selection (`PYTHON` environment variable) are out of scope.
+
+---
+
+## Error Handling
+
+Exceptions raised on the Python side are automatically converted into
+`PyCall::PythonError` when they cross a boundary (`PyCall.import_module`,
+`PyObject#call`, dynamic method calls, `[]`/`[]=`).
+
+```ruby
+require "pycall"
+
+math = PyCall.import_module(:math)
+
+begin
+  math.sqrt(-1)
+rescue PyCall::PythonError => e
+  e.message          # => a formatted message, e.g. "ValueError: expected a nonnegative input, got -1.0\n"
+  e.type             # => the Python exception class (e.g. ValueError)
+  e.value            # => the Python exception instance
+  e.traceback        # => the Python traceback object
+  e.original_error   # => the error before conversion
+end
+```
+
+Errors that are not `PyCall::PythonError` (e.g. a plain `raise "boom"` in
+Ruby) are re-raised unchanged, preserving their original backtrace.
 
 ---
 
