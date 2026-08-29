@@ -42,8 +42,8 @@ math.sin(math.pi / 4)
 
 `pycall-lite` は unpkg/jsDelivr から参照できます。
 
-- `https://cdn.jsdelivr.net/npm/pycall-lite@0.1.0/dist/index.js`
-- `https://unpkg.com/pycall-lite@0.1.0/dist/index.js`
+- `https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js`
+- `https://unpkg.com/pycall-lite@0.1.1/dist/index.js`
 
 jsDelivr から参照する場合、以下のように HTML に書きます。
 各ライブラリのバージョンは適宜調整してください。
@@ -52,7 +52,7 @@ jsDelivr から参照する場合、以下のように HTML に書きます。
 <script type="importmap">
 {
   "imports": {
-    "pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.0/dist/index.js",
+    "pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js",
     "@ruby/wasm-wasi/dist/esm/browser.js": "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.9.3-2.9.4/dist/esm/browser.js",
     "@bjorn3/browser_wasi_shim": "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js",
     "pyodide": "https://cdn.jsdelivr.net/npm/pyodide@314.0.2/pyodide.mjs"
@@ -108,7 +108,7 @@ npm install pycall-lite
 <script type="importmap">
 {
   "imports": {
-    "pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.0/dist/index.js",
+    "pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js",
     "@ruby/wasm-wasi/dist/esm/browser.js": "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.9.3-2.9.4/dist/esm/browser.js",
     "@bjorn3/browser_wasi_shim": "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js",
     "pyodide": "https://cdn.jsdelivr.net/npm/pyodide@314.0.2/pyodide.mjs"
@@ -274,6 +274,30 @@ converted = PyCall.ruby_to_js(payload)
 - Python callable の呼び出し記法は `obj.(...)` ではなく `obj.call(...)` が中心です。
 - キーワード引数 (`x: 1`) の完全互換は未保証です。
 - `without_gvl` や Python 実行ファイル選択 (`PYTHON` 環境変数) は対象外です。
+
+---
+
+## エラーハンドリング
+
+Python 側で発生した例外は、境界（`PyCall.import_module`、`PyObject#call`、動的メソッド呼び出し、`[]`/`[]=`）を越える際に自動的に `PyCall::PythonError` へ変換されます。
+
+```ruby
+require "pycall"
+
+math = PyCall.import_module(:math)
+
+begin
+  math.sqrt(-1)
+rescue PyCall::PythonError => e
+  e.message          # => "ValueError: expected a nonnegative input, got -1.0\n" などの整形済みメッセージ
+  e.type             # => Python 例外クラス (ValueError など)
+  e.value            # => Python 例外インスタンス
+  e.traceback        # => Python の traceback オブジェクト
+  e.original_error   # => 変換前の元エラー
+end
+```
+
+`PyCall::PythonError` ではない Ruby 由来のエラー（`raise "boom"` など）はそのまま再送出され、バックトレースも保持されます。
 
 ---
 
