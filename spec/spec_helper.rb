@@ -35,6 +35,7 @@ module WasmPycallRunner
         globalThis.__pycall_pyodides__.set(vmId, pyodide);
 
         const pycallRb = await fs.readFile("lib/pycall.rb", "utf8");
+        const errorRb = await fs.readFile("lib/pycall/error.rb", "utf8");
         const importRb = await fs.readFile("lib/pycall/import.rb", "utf8");
 
         vm.eval(pycallRb);
@@ -42,6 +43,13 @@ module WasmPycallRunner
           unless $LOADED_FEATURES.include?("pycall.rb")
             $LOADED_FEATURES << "pycall"
             $LOADED_FEATURES << "pycall.rb"
+          end
+        `);
+        vm.eval(errorRb);
+        vm.eval(`
+          unless $LOADED_FEATURES.include?("pycall/error.rb")
+            $LOADED_FEATURES << "pycall/error"
+            $LOADED_FEATURES << "pycall/error.rb"
           end
         `);
         vm.eval(importRb);

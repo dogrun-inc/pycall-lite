@@ -1,4 +1,4 @@
-import { pycallRb, importRb } from "./ruby_code.js";
+import { pycallRb, errorRb, importRb } from "./ruby_code.js";
 
 // Initialize global pyodides Map
 if (!(globalThis as any).__pycall_pyodides__) {
@@ -39,11 +39,21 @@ export function setupPyCall(rubyVM: any, pyodide: any): void {
   // 2. Evaluate the Ruby source code directly to define PyCall modules and classes.
   rubyVM.eval(pycallRb);
 
-  // Mark pycall as loaded before evaluating importRb, because import.rb requires "pycall".
+  // Mark pycall as loaded before evaluating errorRb/importRb, since both
+  // `require "pycall"`.
   rubyVM.eval(`
     unless $LOADED_FEATURES.include?("pycall.rb")
       $LOADED_FEATURES << "pycall"
       $LOADED_FEATURES << "pycall.rb"
+    end
+  `);
+
+  rubyVM.eval(errorRb);
+
+  rubyVM.eval(`
+    unless $LOADED_FEATURES.include?("pycall/error.rb")
+      $LOADED_FEATURES << "pycall/error"
+      $LOADED_FEATURES << "pycall/error.rb"
     end
   `);
 
