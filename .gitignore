@@ -24,3 +24,11 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Temporary files
+tmp/
+*.tmp
+
+# Package files
+package/
+pycall-lite-*.tgz
