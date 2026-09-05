@@ -60,7 +60,15 @@ module PyCall
       py_obj.to_s == 'true'
     else
       if is_pyproxy?(py_obj)
-        PyCall::PyObject.new(py_obj)
+        python_type = py_obj[:type].to_s
+        return Complex(py_obj[:real].to_f, py_obj[:imag].to_f) if python_type == 'complex'
+
+        if python_type.start_with?('numpy.') && python_type != 'numpy.ndarray' && py_obj[:item].is_a?(JS::Object) && py_obj[:item].typeof == 'function'
+          return wrap(py_obj[:item].call(:call, py_obj))
+        end
+
+        mapped_class = python_type_mapping_for(py_obj)
+        mapped_class ? mapped_class.new(py_obj) : PyCall::PyObject.new(py_obj)
       else
         py_obj
       end
@@ -92,6 +100,26 @@ module PyCall
     JS.global[:Object][:prototype][:isPrototypeOf].call(:call, pyproxy_proto, obj) == true
   end
 
+  def self.register_python_type_mapping(python_type_name, ruby_class)
+    @python_type_mappings ||= {}
+    @python_type_mappings[python_type_name.to_s] = ruby_class
+  end
+
+  def self.python_type_mapping_for(obj)
+    python_type = obj[:type].to_s
+    @python_type_mappings && @python_type_mappings[python_type]
+  rescue StandardError
+    nil
+  end
+
+  def self.split_kwargs(args)
+    if !args.empty? && args.last.is_a?(Hash)
+      [args[0...-1], args.last]
+    else
+      [args, nil]
+    end
+  end
+
   # Performs Ruby-to-JS/Python conversion for method calls.
   #
   # Handles Ruby native types (Symbol, Hash, Array, Proc/Block) and converts them
@@ -118,6 +146,8 @@ module PyCall
         js_arr.call(:push, ruby_to_js(v))
       end
       js_arr
+    when Complex
+      pyodide.call(:runPython, 'lambda real, imag: complex(real, imag)').call(:call, nil, val.real, val.imag)
     when Proc
       # Wrap a Ruby Proc/Block as a Python-callable JS function.
       # The wrapped function converts arguments and invokes the Proc.
@@ -196,6 +226,14 @@ module PyCall
     # @return [Object, PyCall::PyObject]
     def call(*args)
       PyCall.with_error_handling do
+        positional, kwargs = PyCall.split_kwargs(args)
+
+        if kwargs && @__js_obj__[:callKwargs].is_a?(JS::Object) && @__js_obj__[:callKwargs].typeof == 'function'
+          js_positional = PyCall.ruby_to_js(positional)
+          js_kwargs = PyCall.ruby_to_js(kwargs)
+          return PyCall.wrap(@__js_obj__.call(:callKwargs, *js_positional, js_kwargs))
+        end
+
         js_args = PyCall.ruby_to_js(args)
 
         # Pyodide may expose callables either as actual JS functions or as
@@ -259,15 +297,30 @@ module PyCall
         if args.empty? && block.nil?
           PyCall.wrap(prop)
         else
-          js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
-          res = prop.call(:call, @__js_obj__, *js_args)
+          positional, kwargs = PyCall.split_kwargs(args)
+
+          if kwargs && prop[:callKwargs].is_a?(JS::Object) && prop[:callKwargs].typeof == 'function'
+            js_positional = positional.map { |arg| PyCall.ruby_to_js(arg) }
+            js_kwargs = PyCall.ruby_to_js(kwargs)
+            res = prop.call(:callKwargs, *js_positional, js_kwargs)
+          else
+            js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
+            res = prop.call(:call, @__js_obj__, *js_args)
+          end
           PyCall.wrap(res)
         end
       else
         if args.any? && prop.is_a?(JS::Object) && prop[:call].typeof == 'function'
-          # Example: python_obj.callable_attr(args)
-          js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
-          res = prop.call(:call, *js_args)
+          positional, kwargs = PyCall.split_kwargs(args)
+
+          if kwargs && prop[:callKwargs].is_a?(JS::Object) && prop[:callKwargs].typeof == 'function'
+            js_positional = positional.map { |arg| PyCall.ruby_to_js(arg) }
+            js_kwargs = PyCall.ruby_to_js(kwargs)
+            res = prop.call(:callKwargs, *js_positional, js_kwargs)
+          else
+            js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
+            res = prop.call(:call, *js_args)
+          end
           PyCall.wrap(res)
         else
           PyCall.wrap(prop)
@@ -321,6 +374,29 @@ module PyCall
     # @return [String]
     def inspect
       "#<PyCall::PyObject #{@__js_obj__.call(:toString).to_s}>"
+    end
+  end
+end
+
+module Kernel
+  unless method_defined?(:__pycall_lite_original_require__)
+    alias_method :__pycall_lite_original_require__, :require
+  end
+
+  def require(name)
+    key = name.to_s.sub(/\.rb\z/, '')
+    registry = JS.global[:__pycall_virtual_files__]
+
+    if registry.is_a?(JS::Object) && registry.typeof == 'object' && registry.call(:has, key) == true
+      return false if $LOADED_FEATURES.include?(key) || $LOADED_FEATURES.include?("#{key}.rb")
+
+      source = registry.call(:get, key).to_s
+      eval(source, TOPLEVEL_BINDING, "#{key}.rb")
+      $LOADED_FEATURES << key
+      $LOADED_FEATURES << "#{key}.rb"
+      true
+    else
+      __pycall_lite_original_require__(name)
     end
   end
 end
