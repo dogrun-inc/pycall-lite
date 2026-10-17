@@ -15,14 +15,18 @@
   "scripts": {
     "build": "node scripts/embed_ruby.js && tsc",
     "test:npm": "npm run build && node --test test/connection.test.js test/pycall.test.js test/error.test.js",
-    "test:rspec": "npm run build && bundle exec rspec --format documentation",
+    "test:rspec": "npm run build && rspec-wasm",
     "test": "npm run test:npm && npm run test:rspec"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dogrun-inc/pycall-lite.git"
   },
-  "keywords": ["ruby.wasm", "pyodide", "pycall"],
+  "keywords": [
+    "ruby.wasm",
+    "pyodide",
+    "pycall"
+  ],
   "author": "Dogrun Inc.",
   "license": "MIT",
   "bugs": {
@@ -36,6 +40,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "rspec-wasm": "^0.2.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }
