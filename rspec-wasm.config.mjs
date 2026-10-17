@@ -4,6 +4,7 @@ import { setupPyCall } from "./dist/index.js";
 export default {
   async setup({ vm }) {
     const pyodide = await loadPyodide();
+    await pyodide.loadPackage("numpy");
 
     setupPyCall(vm, pyodide);
 
