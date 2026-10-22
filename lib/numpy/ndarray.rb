@@ -8,8 +8,10 @@ module Numpy
       value = if index.length == 1
                 super(index[0])
               else
-                tuple = PyCall.pyodide.call(:runPython, 'lambda *items: tuple(items)')
-                PyCall.wrap(@__js_obj__.call(:get, tuple.call(:call, *index.map { |i| PyCall.ruby_to_js(i) })))
+                PyCall.with_error_handling do
+                  tuple = PyCall.pyodide.call(:runPython, 'lambda *items: tuple(items)')
+                  super(tuple.call(:call, nil, *index.map { |i| PyCall.ruby_to_js(i) }))
+                end
               end
 
       value.is_a?(Integer) && float_dtype? ? value.to_f : value
