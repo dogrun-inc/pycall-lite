@@ -52,6 +52,41 @@ RSpec.describe Numpy do
     end
   end
 
+  it "preserves every index and its order in multidimensional scalar access" do
+    array = Numpy.asarray([[1, 2], [3, 4]])
+
+    expect(array[1, 0]).to eq(3)
+    expect(array[0, 1]).to eq(2)
+    expect(array[-1, -1]).to eq(4)
+  end
+
+  it "preserves Float scalars in multidimensional indexing" do
+    array = Numpy.asarray([[1, 2], [3, 4]], dtype: :float32)
+
+    expect(array[1, 0]).to be_a(Float)
+    expect(array[1, 0]).to eq(3.0)
+  end
+
+  it "wraps array views returned by partial multidimensional indexing" do
+    array = Numpy.asarray([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+    result = array[1, 0]
+
+    expect(result).to be_a(Numpy::NDArray)
+    expect(result.to_a).to eq([5, 6])
+  end
+
+  it "converts out-of-bounds multidimensional index errors to PythonError" do
+    array = Numpy.asarray([[1, 2], [3, 4]])
+
+    expect { array[9, 0] }.to raise_error(PyCall::PythonError, /IndexError/)
+  end
+
+  it "converts excessive multidimensional index errors to PythonError" do
+    array = Numpy.asarray([[1, 2], [3, 4]])
+
+    expect { array[0, 0, 0] }.to raise_error(PyCall::PythonError, /IndexError/)
+  end
+
   [
     [1, 2, 3, 4, 5],
     [[1, 2, 3], [4, 5, 6]],
