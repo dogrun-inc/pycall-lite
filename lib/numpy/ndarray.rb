@@ -9,8 +9,9 @@ module Numpy
                 super(index[0])
               else
                 PyCall.with_error_handling do
-                  tuple = PyCall.pyodide.call(:runPython, 'lambda *items: tuple(items)')
-                  super(tuple.call(:call, nil, *index.map { |i| PyCall.ruby_to_js(i) }))
+                  # PyProxy#get suppresses IndexError; index in Python to preserve it.
+                  getitem = PyCall.pyodide.call(:runPython, 'lambda array, *items: array[tuple(items)]')
+                  PyCall.wrap(getitem.call(:call, nil, @__js_obj__, *index.map { |i| PyCall.ruby_to_js(i) }))
                 end
               end
 
