@@ -4,6 +4,16 @@ require "spec_helper"
 require "numpy"
 
 RSpec.describe Numpy do
+  it "forwards keyword-only calls through NumPy delegation" do
+    expect(Numpy.zeros(shape: [2]).to_a).to eq([0, 0])
+  end
+
+  it "preserves positional Hash values alongside NumPy keywords" do
+    array = Numpy.full([2], {key: 3}, dtype: :object)
+
+    expect(array[0][:key].to_i).to eq(3)
+  end
+
   it "exposes a version and wraps asarray results" do
     expect(Numpy::VERSION).to be_a(String)
     expect(Numpy::VERSION).not_to be_empty

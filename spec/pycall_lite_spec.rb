@@ -3,6 +3,40 @@
 require "spec_helper"
 
 RSpec.describe "pycall-lite (Ruby viewpoint)" do
+  it "distinguishes positional Hashes from keywords in callable dispatch" do
+    main = PyCall.import_module(:__main__)
+    probe = main.keyword_probe
+
+    expect(main.echo({key: 1})[:key].to_i).to eq(1)
+    expect(main.echo.call({key: 1})[:key].to_i).to eq(1)
+    expect(probe.call({key: 3}, offset: 4)).to eq(7)
+    expect(probe.call(offset: 4)).to eq(4)
+    expect(main.keyword_probe({key: 3}, offset: 4)).to eq(7)
+    expect(main.keyword_probe(offset: 4)).to eq(4)
+    expect(main.keyword_probe(**{"offset" => 4})).to eq(4)
+    expect(main.keyword_probe({key: 3}, **{})).to eq(3)
+    expect { probe.call(key: 1) }.to raise_error(PyCall::PythonError, /TypeError/)
+  end
+
+  it "preserves positional Hashes and keywords in constructors" do
+    klass = PyCall.import_module(:__main__).KeywordBox
+
+    expect(klass.new({key: 3}).value).to eq(3)
+    expect(klass.new({key: 3}, offset: 4).value).to eq(7)
+    expect(klass.new(offset: 4).value).to eq(4)
+  end
+
+  it "preserves positional Hashes and keywords through import helpers" do
+    helpers = Module.new do
+      include PyCall::Import
+      pyfrom :__main__, import: [:keyword_probe]
+    end
+
+    expect(helpers.keyword_probe({key: 3})).to eq(3)
+    expect(helpers.keyword_probe({key: 3}, offset: 4)).to eq(7)
+    expect(helpers.keyword_probe(offset: 4)).to eq(4)
+  end
+
   it "imports module and calls Python function" do
     math = PyCall.import_module(:math)
 
