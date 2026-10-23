@@ -25,12 +25,12 @@ module Numpy
     end
 
     # Delegates to NumPy mean, converting the result to Float unless dtype is supplied.
-    # @param args [Array<Object>] positional arguments and an optional trailing keyword Hash
+    # @param args [Array<Object>] positional arguments
+    # @param kwargs [Hash] keyword arguments forwarded to NumPy
     # @return [Object] wrapped NumPy result, or Float when dtype is omitted
-    def mean(*args)
-      positional, kwargs = PyCall.split_kwargs(args)
-      result = kwargs ? Backend.mean(*positional, kwargs) : Backend.mean(*args)
-      kwargs && kwargs.key?(:dtype) ? result : result.to_f
+    def mean(*args, **kwargs)
+      result = Backend.mean(*args, **kwargs)
+      kwargs.key?(:dtype) ? result : result.to_f
     end
 
     # Delegates calls and dtype attribute access to {Backend}.
@@ -38,8 +38,8 @@ module Numpy
     # @param args [Array<Object>] arguments forwarded to Backend
     # @param block [Proc, nil] block forwarded to Backend
     # @return [Object] wrapped Python result
-    def method_missing(name, *args, &block)
-      Backend.__send__(name, *args, &block)
+    def method_missing(name, *args, **kwargs, &block)
+      Backend.__send__(name, *args, **kwargs, &block)
     end
 
     # Reports whether {Backend} responds to the requested name.

@@ -112,14 +112,6 @@ module PyCall
     nil
   end
 
-  def self.split_kwargs(args)
-    if !args.empty? && args.last.is_a?(Hash)
-      [args[0...-1], args.last]
-    else
-      [args, nil]
-    end
-  end
-
   # Performs Ruby-to-JS/Python conversion for method calls.
   #
   # Handles Ruby native types (Symbol, Hash, Array, Proc/Block) and converts them
@@ -199,16 +191,16 @@ module PyCall
     #
     # @param args [Array<Object>] constructor arguments
     # @return [Object, PyCall::PyObject]
-    def new(*args)
+    def new(*args, **kwargs)
       # Some proxies expose constructor behavior through callable invocation.
       begin
-        return wrap_constructor_result(call(*args))
+        return wrap_constructor_result(call(*args, **kwargs))
       rescue StandardError
         # Fall through to generic callable invocation.
       end
 
       # Fallback to generic callable invocation.
-      wrap_constructor_result(call(*args))
+      wrap_constructor_result(call(*args, **kwargs))
     end
 
     def wrap_constructor_result(res)
@@ -224,12 +216,10 @@ module PyCall
     #
     # @param args [Array<Object>] call arguments
     # @return [Object, PyCall::PyObject]
-    def call(*args)
+    def call(*args, **kwargs)
       PyCall.with_error_handling do
-        positional, kwargs = PyCall.split_kwargs(args)
-
-        if kwargs && @__js_obj__[:callKwargs].is_a?(JS::Object) && @__js_obj__[:callKwargs].typeof == 'function'
-          js_positional = PyCall.ruby_to_js(positional)
+        if !kwargs.empty? && @__js_obj__[:callKwargs].is_a?(JS::Object) && @__js_obj__[:callKwargs].typeof == 'function'
+          js_positional = args.map { |arg| PyCall.ruby_to_js(arg) }
           js_kwargs = PyCall.ruby_to_js(kwargs)
           return PyCall.wrap(@__js_obj__.call(:callKwargs, *js_positional, js_kwargs))
         end
@@ -260,17 +250,19 @@ module PyCall
     # @param name [Symbol]
     # @param args [Array<Object>]
     # @return [Object, PyCall::PyObject]
-    def method_missing(name, *args, &block)
+    def method_missing(name, *args, **kwargs, &block)
       PyCall.with_error_handling do
-        method_missing_without_error_handling(name, *args, &block)
+        method_missing_without_error_handling(name, *args, **kwargs, &block)
       end
     end
 
-    def method_missing_without_error_handling(name, *args, &block)
+    def method_missing_without_error_handling(name, *args, **kwargs, &block)
       name_str = name.to_s
 
       # Constructor call: python_class.new(args)
       if name == :new
+        return call(*args, **kwargs) unless kwargs.empty?
+
         js_args = args.map { |arg| PyCall.ruby_to_js(arg) }
 
         if @__js_obj__[:new].is_a?(JS::Object) && @__js_obj__[:new].typeof == 'function'
@@ -294,13 +286,11 @@ module PyCall
       if prop.is_a?(JS::Object) && prop.typeof == 'function'
         # Distinguish attribute access from invocation for callable attributes
         # (e.g. module.ClassName should return the class object itself).
-        if args.empty? && block.nil?
+        if args.empty? && kwargs.empty? && block.nil?
           PyCall.wrap(prop)
         else
-          positional, kwargs = PyCall.split_kwargs(args)
-
-          if kwargs && prop[:callKwargs].is_a?(JS::Object) && prop[:callKwargs].typeof == 'function'
-            js_positional = positional.map { |arg| PyCall.ruby_to_js(arg) }
+          if !kwargs.empty? && prop[:callKwargs].is_a?(JS::Object) && prop[:callKwargs].typeof == 'function'
+            js_positional = args.map { |arg| PyCall.ruby_to_js(arg) }
             js_kwargs = PyCall.ruby_to_js(kwargs)
             res = prop.call(:callKwargs, *js_positional, js_kwargs)
           else
@@ -310,11 +300,9 @@ module PyCall
           PyCall.wrap(res)
         end
       else
-        if args.any? && prop.is_a?(JS::Object) && prop[:call].typeof == 'function'
-          positional, kwargs = PyCall.split_kwargs(args)
-
-          if kwargs && prop[:callKwargs].is_a?(JS::Object) && prop[:callKwargs].typeof == 'function'
-            js_positional = positional.map { |arg| PyCall.ruby_to_js(arg) }
+        if (args.any? || !kwargs.empty?) && prop.is_a?(JS::Object) && prop[:call].typeof == 'function'
+          if !kwargs.empty? && prop[:callKwargs].is_a?(JS::Object) && prop[:callKwargs].typeof == 'function'
+            js_positional = args.map { |arg| PyCall.ruby_to_js(arg) }
             js_kwargs = PyCall.ruby_to_js(kwargs)
             res = prop.call(:callKwargs, *js_positional, js_kwargs)
           else
