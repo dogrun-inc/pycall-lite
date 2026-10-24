@@ -4,6 +4,27 @@ require "spec_helper"
 require "numpy"
 
 RSpec.describe Numpy do
+  # These scalar types reach wrap as PyProxy objects; float64 is converted by Pyodide first.
+  [:float16, :float32].each do |dtype|
+    [0, 2, -2, 1.5].each do |value|
+      it "preserves #{dtype} scalar #{value} as Float" do
+        result = Numpy.__send__(dtype).call(value)
+
+        expect(result).to be_a(Float)
+        expect(result).to eq(value.to_f)
+      end
+    end
+  end
+
+  {int32: Integer, int64: Integer, bool_: TrueClass, complex64: Complex}.each do |dtype, klass|
+    it "preserves non-floating #{dtype} scalar types" do
+      result = Numpy.__send__(dtype).call(2)
+
+      expect(result).to be_a(klass)
+      expect(result).to eq(dtype == :bool_ ? true : 2)
+    end
+  end
+
   it "forwards keyword-only calls through NumPy delegation" do
     expect(Numpy.zeros(shape: [2]).to_a).to eq([0, 0])
   end

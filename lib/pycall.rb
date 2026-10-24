@@ -64,7 +64,11 @@ module PyCall
         return Complex(py_obj[:real].to_f, py_obj[:imag].to_f) if python_type == 'complex'
 
         if python_type.start_with?('numpy.') && python_type != 'numpy.ndarray' && py_obj[:item].is_a?(JS::Object) && py_obj[:item].typeof == 'function'
-          return wrap(py_obj[:item].call(:call, py_obj))
+          item = py_obj[:item].call(:call, py_obj)
+          # Preserve the dtype before JavaScript numbers lose Python's numeric type.
+          return item.to_f if py_obj[:dtype][:kind].to_s == 'f'
+
+          return wrap(item)
         end
 
         mapped_class = python_type_mapping_for(py_obj)
