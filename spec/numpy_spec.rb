@@ -4,6 +4,35 @@ require "spec_helper"
 require "numpy"
 
 RSpec.describe Numpy do
+  [:float16, :float32, :float64].each do |dtype|
+    it "preserves #{dtype} values as Float through asscalar" do
+      [0.0, 1.0, -2.0, 1.5].each do |value|
+        [value, [value], [[value]]].each do |values|
+          result = Numpy.asscalar(Numpy.asarray(values, dtype: dtype))
+
+          expect(result).to be_a(Float)
+          expect(result).to eq(value)
+        end
+      end
+    end
+  end
+
+  it "preserves the inferred floating dtype through asscalar" do
+    array = Numpy.asarray([1.5])
+
+    expect(array.dtype.kind).to eq('f')
+    expect(Numpy.asscalar(array)).to be_a(Float)
+    expect(Numpy.asscalar(array)).to eq(1.5)
+  end
+
+  [[], [1.0, 2.0]].each do |values|
+    it "rejects asscalar input with #{values.length} elements" do
+      expect do
+        Numpy.asscalar(Numpy.asarray(values))
+      end.to raise_error(PyCall::PythonError, /ValueError/)
+    end
+  end
+
   # These scalar types reach wrap as PyProxy objects; float64 is converted by Pyodide first.
   [:float16, :float32].each do |dtype|
     [0, 2, -2, 1.5].each do |value|

@@ -16,12 +16,13 @@ module Numpy
     end
 
   class << self
-    # Returns the single element via NumPy's item method.
+    # Returns the single element via NumPy's item method, preserving floating dtypes.
     # @param array [Numpy::NDArray] single-element array
     # @return [Object] converted Ruby scalar
     # @raise [PyCall::PythonError] if the array does not contain exactly one element
     def asscalar(array)
-      array.item.call
+      value = array.item.call
+      value.is_a?(Integer) && array.dtype.kind == 'f' ? value.to_f : value
     end
 
     # Delegates to NumPy mean, converting the result to Float unless dtype is supplied.
