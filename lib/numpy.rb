@@ -25,13 +25,16 @@ module Numpy
       value.is_a?(Integer) && array.dtype.kind == 'f' ? value.to_f : value
     end
 
-    # Delegates to NumPy mean, converting the result to Float unless dtype is supplied.
+    # Delegates to NumPy mean, preserving arrays and complex values and normalizing real scalars.
     # @param args [Array<Object>] positional arguments
     # @param kwargs [Hash] keyword arguments forwarded to NumPy
-    # @return [Object] wrapped NumPy result, or Float when dtype is omitted
+    # @return [Object] wrapped NumPy result with real scalar types matching dtype
     def mean(*args, **kwargs)
       result = Backend.mean(*args, **kwargs)
-      kwargs.key?(:dtype) ? result : result.to_f
+      return result unless result.is_a?(Integer) || result.is_a?(Float)
+
+      dtype = kwargs.fetch(:dtype) { kwargs.fetch('dtype', args[2]) }
+      dtype.nil? || Backend.dtype(dtype).kind == 'f' ? result.to_f : result
     end
 
     # Delegates calls and dtype attribute access to {Backend}.

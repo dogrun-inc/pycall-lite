@@ -4,6 +4,44 @@ require "spec_helper"
 require "numpy"
 
 RSpec.describe Numpy do
+  it "preserves array results from axis reductions" do
+    result = Numpy.mean(Numpy.asarray([[1, 2], [3, 4]]), axis: 0)
+
+    expect(result).to be_a(Numpy::NDArray)
+    expect(result.to_a).to eq([2, 3])
+    expect(result.dtype.kind).to eq('f')
+  end
+
+  it "preserves complex means with a nonzero imaginary part" do
+    result = Numpy.mean(Numpy.asarray([Complex(1, 2), Complex(3, 4)]))
+
+    expect(result).to be_a(Complex)
+    expect(result).to eq(Complex(2, 3))
+  end
+
+  [:float32, :float64, :int32, :complex128].each do |dtype|
+    it "honors #{dtype} through symbol, string, and positional dtype arguments" do
+      array = Numpy.asarray([1, 3])
+      results = [
+        Numpy.mean(array, dtype: dtype),
+        Numpy.mean(array, **{'dtype' => dtype}),
+        Numpy.mean(array, 0, dtype)
+      ]
+      klass = {float32: Float, float64: Float, int32: Integer, complex128: Complex}.fetch(dtype)
+
+      results.each do |result|
+        expect(result).to be_a(klass)
+        expect(result).to eq(2)
+      end
+    end
+  end
+
+  it "accepts a floating dtype object" do
+    array = Numpy.asarray([1, 3])
+
+    expect(Numpy.mean(array, dtype: Numpy.float64)).to be_a(Float)
+  end
+
   [:float16, :float32, :float64].each do |dtype|
     it "preserves #{dtype} values as Float through asscalar" do
       [0.0, 1.0, -2.0, 1.5].each do |value|
