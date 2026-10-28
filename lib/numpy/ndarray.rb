@@ -5,15 +5,10 @@ module Numpy
     # @param index [Array<Object>] indices; multiple indices form a Python tuple
     # @return [Object, Numpy::NDArray] converted scalar or wrapped array view
     def [](*index)
-      value = if index.length == 1
-                super(index[0])
-              else
-                PyCall.with_error_handling do
-                  # PyProxy#get suppresses IndexError; index in Python to preserve it.
-                  getitem = PyCall.pyodide.call(:runPython, 'lambda array, *items: array[tuple(items)]')
-                  PyCall.wrap(getitem.call(:call, nil, @__js_obj__, *index.map { |i| PyCall.ruby_to_js(i) }))
-                end
-              end
+      value = PyCall.with_error_handling do
+        getitem = PyCall.pyodide.call(:runPython, 'lambda array, *items: array[items[0] if len(items) == 1 else tuple(items)]')
+        PyCall.wrap(getitem.call(:call, nil, @__js_obj__, *index.map { |i| PyCall.ruby_to_js(i) }))
+      end
 
       value.is_a?(Integer) && float_dtype? ? value.to_f : value
     end
