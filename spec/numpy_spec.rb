@@ -150,6 +150,34 @@ RSpec.describe Numpy do
     end
   end
 
+  it "reads single indices at both ends with positive and negative indices" do
+    array = Numpy.asarray([1, 2])
+
+    expect(array[0]).to eq(1)
+    expect(array[1]).to eq(2)
+    expect(array[-1]).to eq(2)
+    expect(array[-2]).to eq(1)
+  end
+
+  [2, 9, -3].each do |index|
+    it "converts out-of-bounds single index #{index} to PythonError" do
+      array = Numpy.asarray([1, 2])
+
+      expect { array[index] }.to raise_error(PyCall::PythonError, /IndexError/)
+    end
+  end
+
+  it "converts indexing an empty array to PythonError" do
+    expect { Numpy.asarray([])[0] }.to raise_error(PyCall::PythonError, /IndexError/)
+  end
+
+  it "preserves array views from single-index access" do
+    result = Numpy.asarray([[1, 2], [3, 4]])[-1]
+
+    expect(result).to be_a(Numpy::NDArray)
+    expect(result.to_a).to eq([3, 4])
+  end
+
   it "preserves every index and its order in multidimensional scalar access" do
     array = Numpy.asarray([[1, 2], [3, 4]])
 
