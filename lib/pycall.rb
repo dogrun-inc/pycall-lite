@@ -371,7 +371,7 @@ module PyCall
 end
 
 module Kernel
-  unless method_defined?(:__pycall_lite_original_require__)
+  unless method_defined?(:__pycall_lite_original_require__) || private_method_defined?(:__pycall_lite_original_require__)
     alias_method :__pycall_lite_original_require__, :require
   end
 
