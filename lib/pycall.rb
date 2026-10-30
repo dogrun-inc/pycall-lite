@@ -13,6 +13,7 @@ module PyCall
   def self.init_vm_id(vm_id)
     @vm_id = vm_id
     @pyodide = nil
+    @numpy_scalar_kind = nil
   end
 
   # Returns the Pyodide instance associated with this Ruby VM.
@@ -63,12 +64,13 @@ module PyCall
         python_type = py_obj[:type].to_s
         return Complex(py_obj[:real].to_f, py_obj[:imag].to_f) if python_type == 'complex'
 
-        if python_type.start_with?('numpy.') && python_type != 'numpy.ndarray' && py_obj[:item].is_a?(JS::Object) && py_obj[:item].typeof == 'function'
-          item = py_obj[:item].call(:call, py_obj)
-          # Preserve the dtype before JavaScript numbers lose Python's numeric type.
-          return item.to_f if py_obj[:dtype][:kind].to_s == 'f'
+        scalar_kind = numpy_scalar_kind(py_obj)
+        unless scalar_kind.empty?
+          converted = pyodide.call(:runPython, scalar_kind).call(:call, nil, py_obj)
+          # Keep the classification across the JavaScript numeric conversion.
+          return converted.to_f if scalar_kind == 'float'
 
-          return wrap(item)
+          return wrap(converted)
         end
 
         mapped_class = python_type_mapping_for(py_obj)
@@ -77,6 +79,28 @@ module PyCall
         py_obj
       end
     end
+  end
+
+  # Classifies only the four NumPy scalar families converted by upstream numpy.rb.
+  # Looking in sys.modules avoids importing NumPy for ordinary Python objects.
+  def self.numpy_scalar_kind(obj)
+    @numpy_scalar_kind ||= pyodide.call(:runPython, <<~PY)
+      def _pycall_numpy_scalar_kind(value):
+          import sys
+          numpy = sys.modules.get('numpy')
+          if numpy is not None:
+              for kind, scalar_type in (
+                  ('int', numpy.integer),
+                  ('float', numpy.floating),
+                  ('complex', numpy.complexfloating),
+                  ('bool', numpy.bool_),
+              ):
+                  if isinstance(value, scalar_type):
+                      return kind
+          return ''
+      _pycall_numpy_scalar_kind
+    PY
+    @numpy_scalar_kind.call(:call, nil, obj).to_s
   end
 
   def self.is_pyproxy?(obj)
