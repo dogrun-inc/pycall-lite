@@ -4,6 +4,37 @@ require "spec_helper"
 require "numpy"
 
 RSpec.describe Numpy do
+  [ [1], [1, 2] ].each do |values|
+    it "preserves a masked array with #{values.length} elements" do
+      array = Numpy.ma.array(values)
+
+      expect(array).to be_a(PyCall::PyObject)
+      expect(PyCall.import_module(:builtins).isinstance(array, Numpy.ma.MaskedArray)).to eq(true)
+      expect(array.size).to eq(values.length)
+      expect(array[0]).to eq(1)
+    end
+  end
+
+  it "preserves masked elements when wrapping masked arrays" do
+    array = Numpy.ma.array([1, 2], mask: [false, true])
+
+    expect(array).to be_a(PyCall::PyObject)
+    expect(array.count.call).to eq(1)
+    expect(array.mask[0]).to eq(false)
+    expect(array.mask[1]).to eq(true)
+    expect(array[0]).to eq(1)
+  end
+
+  {int32: Integer, float32: Float, complex64: Complex}.each do |dtype, klass|
+    it "converts a user-defined subclass of numpy.#{dtype}" do
+      scalar = PyCall.pyodide.call(:runPython, "type('CustomScalar', (__import__('numpy').#{dtype},), {'__module__': 'custom_scalars'})(2)")
+      result = PyCall.wrap(scalar)
+
+      expect(result).to be_a(klass)
+      expect(result).to eq(2)
+    end
+  end
+
   it "preserves array results from axis reductions" do
     result = Numpy.mean(Numpy.asarray([[1, 2], [3, 4]]), axis: 0)
 

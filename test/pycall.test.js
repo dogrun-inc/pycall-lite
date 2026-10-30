@@ -76,6 +76,7 @@ class NeedsArg:
   });
 
   it("should support PyCall.import_module and basic function calls", async () => {
+    assert.equal(pyodide.runPython("'numpy' in __import__('sys').modules"), false);
     vm.eval(`
       require "pycall"
 
@@ -86,6 +87,7 @@ class NeedsArg:
     `);
 
     assert.equal(globalThis.testResult, 1);
+    assert.equal(pyodide.runPython("'numpy' in __import__('sys').modules"), false);
   });
 
   it("supports pyimport and pyfrom macros", () => {
