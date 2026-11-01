@@ -37,10 +37,10 @@ module Numpy
 
     private
 
-    # Tests the dtype name, returning false if it cannot be read.
-    # @return [Boolean] whether the dtype name starts with float
+    # Tests the dtype kind, returning false if it cannot be read.
+    # @return [Boolean] whether the dtype is floating-point
     def float_dtype?
-      dtype.to_s.start_with?('float')
+      dtype.kind == 'f'
     rescue StandardError
       false
     end
