@@ -181,6 +181,29 @@ RSpec.describe Numpy do
     end
   end
 
+  [">f4", "<f4", ">f8", "<f8"].each do |dtype|
+    it "preserves Float values when indexing arrays with dtype #{dtype}" do
+      array = Numpy.asarray([0, 1, -2], dtype: dtype)
+      matrix = Numpy.asarray([[0, 1, -2]], dtype: dtype)
+
+      [0.0, 1.0, -2.0].each_with_index do |expected, index|
+        [array[index], matrix[0, index]].each do |result|
+          expect(result).to be_a(Float)
+          expect(result).to eq(expected)
+        end
+      end
+    end
+  end
+
+  [">i4", "<i4", ">i8", "<i8"].each do |dtype|
+    it "preserves Integer values when indexing arrays with dtype #{dtype}" do
+      result = Numpy.asarray([1], dtype: dtype)[0]
+
+      expect(result).to be_a(Integer)
+      expect(result).to eq(1)
+    end
+  end
+
   it "reads single indices at both ends with positive and negative indices" do
     array = Numpy.asarray([1, 2])
 
