@@ -3,6 +3,16 @@
 require "spec_helper"
 
 RSpec.describe "pycall-lite (Ruby viewpoint)" do
+  [9007199254740991, 9007199254740992, 9007199254740993,
+   -9007199254740993, 2**100, -(2**100)].each do |value|
+    it "converts Python integer #{value} to Ruby Integer without precision loss" do
+      result = PyCall.import_module(:builtins).int(value.to_s)
+
+      expect(result).to be_a(Integer)
+      expect(result).to eq(value)
+    end
+  end
+
   it "distinguishes positional Hashes from keywords in callable dispatch" do
     main = PyCall.import_module(:__main__)
     probe = main.keyword_probe

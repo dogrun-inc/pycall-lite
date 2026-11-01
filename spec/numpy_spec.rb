@@ -4,6 +4,18 @@ require "spec_helper"
 require "numpy"
 
 RSpec.describe Numpy do
+  {int64: [1, 9007199254740993, -9007199254740993, -(2**63), 2**63 - 1],
+   uint64: [2**64 - 1]}.each do |dtype, values|
+    values.each do |value|
+      it "converts numpy.#{dtype} value #{value} to Ruby Integer without precision loss" do
+        result = Numpy.__send__(dtype).call(value.to_s)
+
+        expect(result).to be_a(Integer)
+        expect(result).to eq(value)
+      end
+    end
+  end
+
   [ [1], [1, 2] ].each do |values|
     it "preserves a masked array with #{values.length} elements" do
       array = Numpy.ma.array(values)

@@ -52,6 +52,8 @@ module PyCall
 
     # Unwrap primitive JS types back to native Ruby types
     case py_obj.typeof
+    when 'bigint'
+      Integer(py_obj.to_s)
     when 'number'
       val = py_obj.to_f
       val.to_i == val ? val.to_i : val
