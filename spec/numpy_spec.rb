@@ -4,6 +4,14 @@ require "spec_helper"
 require "numpy"
 
 RSpec.describe Numpy do
+  it "passes large Ruby integers to NumPy scalar constructors and arrays" do
+    value = 9007199254740993
+
+    expect(Numpy.int64.call(value)).to eq(value)
+    expect(Numpy.asarray([value, -value], dtype: :int64)[0]).to eq(value)
+    expect(Numpy.asarray([value, -value], dtype: :int64)[1]).to eq(-value)
+  end
+
   {int64: [1, 9007199254740993, -9007199254740993, -(2**63), 2**63 - 1],
    uint64: [2**64 - 1]}.each do |dtype, values|
     values.each do |value|

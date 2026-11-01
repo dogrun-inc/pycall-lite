@@ -154,6 +154,10 @@ module PyCall
     case val
     when PyCall::PyObject
       val.__js_obj__
+    when Integer
+      # Ruby.wasm cannot implicitly convert Bignum, even within JS's safe range.
+      constructor = val.abs <= 9_007_199_254_740_991 ? :Number : :BigInt
+      JS.global.call(constructor, val.to_s)
     when Symbol
       val.to_s
     when Hash

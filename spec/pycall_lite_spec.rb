@@ -3,6 +3,29 @@
 require "spec_helper"
 
 RSpec.describe "pycall-lite (Ruby viewpoint)" do
+  [0, 42, -42, 2**31, 9007199254740991, -9007199254740991,
+   9007199254740992, 9007199254740993, -9007199254740993, 2**100, -(2**100)].each do |value|
+    it "passes Ruby integer #{value} to Python without precision loss" do
+      builtins = PyCall.import_module(:builtins)
+      main = PyCall.import_module(:__main__)
+      js_value = PyCall.ruby_to_js(value)
+
+      expect(js_value.typeof).to eq(value.abs <= 9007199254740991 ? 'number' : 'bigint')
+      expect(builtins.str(value)).to eq(value.to_s)
+      expect(main.echo(value)).to eq(value)
+      expect(main.echo.call(value)).to eq(value)
+      expect(main.keyword_probe(offset: value)).to eq(value)
+    end
+  end
+
+  it "preserves large integers nested inside arrays and Hashes" do
+    value = 2**100 + 1
+    inspect_values = PyCall.wrap(PyCall.pyodide.call(:runPython,
+      'lambda payload: str(payload.values[0]) + ":" + str(payload.values[1])'))
+
+    expect(inspect_values.call({values: [value, -value]})).to eq("#{value}:#{-value}")
+  end
+
   [9007199254740991, 9007199254740992, 9007199254740993,
    -9007199254740993, 2**100, -(2**100)].each do |value|
     it "converts Python integer #{value} to Ruby Integer without precision loss" do
