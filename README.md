@@ -304,6 +304,23 @@ Ruby) are re-raised unchanged, preserving their original backtrace.
 
 ---
 
+## NumPy array conversion
+
+Load NumPy with `await pyodide.loadPackage("numpy")` before Ruby's `require "numpy"`.
+`Numpy::NDArray#to_a` follows Python NumPy's `tolist()`: arrays with one or more
+dimensions return nested Ruby Arrays, while a zero-dimensional array (shape `()`)
+returns its scalar value. Unlike the usual Ruby `to_a` convention, the return
+value is therefore not always an Array. Floating array dtypes retain Ruby Float values.
+
+```ruby
+require "numpy"
+
+Numpy.asarray(1).to_a                      # => 1
+Numpy.asarray(1, dtype: :float64).to_a     # => 1.0
+Numpy.asarray([1]).to_a                    # => [1]
+Numpy.asarray([[1, 2]]).to_a               # => [[1, 2]]
+```
+
 ## Tests
 
 JavaScript side:
