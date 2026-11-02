@@ -4,6 +4,29 @@ require "spec_helper"
 require "numpy"
 
 RSpec.describe Numpy do
+  {int64: [1, Integer], float32: [1, Float], float64: [1, Float],
+   complex128: [Complex(1, 2), Complex], bool_: [true, TrueClass]}.each do |dtype, (value, klass)|
+    it "returns a #{klass} scalar from zero-dimensional #{dtype} to_a" do
+      array = Numpy.asarray(value, dtype: dtype)
+      result = array.to_a
+
+      expect(array).to be_a(Numpy::NDArray)
+      expect(array.ndim).to eq(0)
+      expect(array.shape.__js_obj__.call(:toJs)[:length].to_i).to eq(0)
+      expect(result).to be_a(klass)
+      expect(result).to eq(value)
+    end
+  end
+
+  it "returns inferred integer, string, and false scalars from zero-dimensional arrays" do
+    [1, 'hello', false].each do |value|
+      result = Numpy.asarray(value).to_a
+
+      expect(result).to be_a(value.class)
+      expect(result).to eq(value)
+    end
+  end
+
   [:float32, :float64, '>f8'].each do |dtype|
     [[0, 1, -2, 1.5], [[0, 1], [-2, 1.5]], [[[0, 1]], [[-2, 1.5]]]].each_with_index do |values, dimension|
       it "preserves Float leaves in #{dimension + 1}-dimensional #{dtype} to_a results" do

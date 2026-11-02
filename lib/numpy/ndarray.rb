@@ -13,10 +13,12 @@ module Numpy
       value.is_a?(Integer) && float_dtype? ? value.to_f : value
     end
 
-    # Converts via NumPy tolist, preserving the array's dimensions.
-    # @return [Array] nested Ruby arrays for nonzero-dimensional arrays
+    # Converts via NumPy tolist: zero-dimensional arrays return a scalar, not an Array.
+    # @return [Object] Ruby scalar for zero-dimensional arrays, nested Arrays otherwise
     def to_a
       list = tolist.call
+      return js_to_ruby(list) if ndim == 0
+
       js_value = list.__js_obj__.call(:toJs)
       js_to_ruby(js_value)
     end
