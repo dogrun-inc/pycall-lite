@@ -4,6 +4,28 @@ require "spec_helper"
 require "numpy"
 
 RSpec.describe Numpy do
+  [:float32, :float64, '>f8'].each do |dtype|
+    [[0, 1, -2, 1.5], [[0, 1], [-2, 1.5]], [[[0, 1]], [[-2, 1.5]]]].each_with_index do |values, dimension|
+      it "preserves Float leaves in #{dimension + 1}-dimensional #{dtype} to_a results" do
+        result = Numpy.asarray(values, dtype: dtype).to_a
+
+        expect(result).to eq(values)
+        result.flatten.each { |value| expect(value).to be_a(Float) }
+      end
+    end
+  end
+
+  {int32: [[[0, 1], [-2, 3]], Integer],
+   bool_: [[[true, false]], nil],
+   complex64: [[[Complex(1, 2), Complex(3, 4)]], Complex]}.each do |dtype, (values, klass)|
+    it "preserves non-floating #{dtype} leaves in to_a results" do
+      result = Numpy.asarray(values, dtype: dtype).to_a
+
+      expect(result).to eq(values)
+      result.flatten.each { |value| expect(value).to be_a(klass) } if klass
+    end
+  end
+
   it "passes large Ruby integers to NumPy scalar constructors and arrays" do
     value = 9007199254740993
 

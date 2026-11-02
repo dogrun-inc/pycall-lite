@@ -47,15 +47,15 @@ module Numpy
 
     # Recursively converts JavaScript Arrays and wraps other values.
     # @param value [Object] JavaScript value to convert
+    # @param floating [Boolean] whether to preserve floating-point numeric leaves
     # @return [Object, Array] converted Ruby value
-    def js_to_ruby(value)
-      return PyCall.wrap(value) unless value.is_a?(JS::Object)
-
-      if JS.global[:Array].call(:isArray, value) == true
+    def js_to_ruby(value, floating: float_dtype?)
+      if value.is_a?(JS::Object) && JS.global[:Array].call(:isArray, value) == true
         length = value[:length].to_i
-        Array.new(length) { |i| js_to_ruby(value[i]) }
+        Array.new(length) { |i| js_to_ruby(value[i], floating: floating) }
       else
-        PyCall.wrap(value)
+        result = PyCall.wrap(value)
+        result.is_a?(Integer) && floating ? result.to_f : result
       end
     end
   end
