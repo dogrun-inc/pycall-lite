@@ -6,8 +6,8 @@ module Numpy
     # @return [Object, Numpy::NDArray] converted scalar or wrapped array view
     def [](*index)
       value = PyCall.with_error_handling do
-        getitem = PyCall.pyodide.call(:runPython, 'lambda array, *items: array[items[0] if len(items) == 1 else tuple(items)]')
-        PyCall.wrap(getitem.call(:call, nil, @__js_obj__, *index.map { |i| PyCall.ruby_to_js(i) }))
+        reader = PyCall.python_index_reader
+        PyCall.wrap(reader.call(:call, nil, @__js_obj__, *index.map { |i| PyCall.ruby_to_js(i) }))
       end
 
       value.is_a?(Integer) && float_dtype? ? value.to_f : value

@@ -39,6 +39,38 @@ describe("NumPy JavaScript integration", () => {
     delete globalThis.numpyResult;
   });
 
+  it("reuses the indexing helper across arrays and resets it on setup", () => {
+    const originalRunPython = pyodide.runPython;
+    let helperCreations = 0;
+    pyodide.runPython = function (source, ...args) {
+      if (source.includes("lambda obj, *items: obj[")) {
+        helperCreations += 1;
+      }
+      return originalRunPython.call(this, source, ...args);
+    };
+
+    try {
+      vm.eval(`
+        require "numpy"
+        first = Numpy.asarray([1, 2])
+        second = Numpy.asarray([[3, 4]])
+        JS.global[:numpyResult] = first[0] == 1 && first[-1] == 2 && second[0, 1] == 4
+      `);
+      assert.equal(globalThis.numpyResult, true);
+      assert.equal(helperCreations, 1);
+
+      setupPyCall(vm, pyodide);
+      vm.eval(`
+        array = Numpy.asarray([5, 6])
+        JS.global[:numpyResult] = array[0] == 5 && array[1] == 6
+      `);
+      assert.equal(globalThis.numpyResult, true);
+      assert.equal(helperCreations, 2);
+    } finally {
+      pyodide.runPython = originalRunPython;
+    }
+  });
+
   it("loads the embedded add-on lazily and only once with either require spelling", () => {
     vm.eval(`
       raise "NumPy was loaded eagerly" if defined?(Numpy)
