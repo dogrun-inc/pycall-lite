@@ -3,6 +3,18 @@
 require "spec_helper"
 
 RSpec.describe "pycall-lite (Ruby viewpoint)" do
+  [[2**100, 1], [1, 2**100], [-(2**100), -(2**100)],
+   [2**100 + 1, -(2**100 + 1)]].each do |real, imag|
+    it "passes Complex components #{real}, #{imag} through integer conversion" do
+      value = Complex(real, imag)
+      result = PyCall.import_module(:__main__).echo(value)
+
+      expect(result).to be_a(Complex)
+      expect(result.real).to eq(real.to_f)
+      expect(result.imag).to eq(imag.to_f)
+    end
+  end
+
   ['nan', 'inf', '-inf'].each do |text|
     it "preserves Python float #{text} as Ruby Float" do
       result = PyCall.import_module(:builtins).float(text)

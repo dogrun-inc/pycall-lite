@@ -53,7 +53,7 @@ bool = ${replacement}
         vm.eval(`
           integer = Numpy.int32.call(2)
           floating = Numpy.float32.call(2)
-          complex = Numpy.complex64.call("2+3j")
+          complex = Numpy.complex64.call(Complex(2, 3))
           boolean = Numpy.bool_.call(true)
           false_boolean = Numpy.bool_.call(false)
           JS.global[:numpyResult] = (

@@ -181,7 +181,9 @@ module PyCall
       end
       js_arr
     when Complex
-      pyodide.call(:runPython, 'lambda real, imag: complex(real, imag)').call(:call, nil, val.real, val.imag)
+      pyodide.pyimport('builtins')[:complex].call(
+        :call, nil, ruby_to_js(val.real), ruby_to_js(val.imag)
+      )
     when Proc
       # Wrap a Ruby Proc/Block as a Python-callable JS function.
       # The wrapped function converts arguments and invokes the Proc.
