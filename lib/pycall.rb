@@ -76,7 +76,7 @@ module PyCall
 
         scalar_kind = numpy_scalar_kind(py_obj)
         unless scalar_kind.empty?
-          converted = pyodide.call(:runPython, scalar_kind).call(:call, nil, py_obj)
+          converted = pyodide.pyimport('builtins')[scalar_kind].call(:call, nil, py_obj)
           # Keep the classification across the JavaScript numeric conversion.
           return converted.to_f if scalar_kind == 'float'
 
