@@ -4,6 +4,23 @@ require "spec_helper"
 require "numpy"
 
 RSpec.describe Numpy do
+  [:float32, :float64].each do |dtype|
+    it "preserves NaN and infinities in nested #{dtype} to_a results" do
+      array = Numpy.asarray([[Float::NAN, Float::INFINITY, -Float::INFINITY]], dtype: dtype)
+      result = array.to_a
+
+      expect(result.length).to eq(1)
+      expect(result[0].length).to eq(3)
+      result[0].each { |value| expect(value).to be_a(Float) }
+      expect(result[0][0].nan?).to eq(true)
+      expect(result[0][1].infinite?).to eq(1)
+      expect(result[0][2].infinite?).to eq(-1)
+      expect(array[0, 0].nan?).to eq(true)
+      expect(array[0, 1].infinite?).to eq(1)
+      expect(array[0, 2].infinite?).to eq(-1)
+    end
+  end
+
   {int64: [1, Integer], float32: [1, Float], float64: [1, Float],
    complex128: [Complex(1, 2), Complex], bool_: [true, TrueClass]}.each do |dtype, (value, klass)|
     it "returns a #{klass} scalar from zero-dimensional #{dtype} to_a" do

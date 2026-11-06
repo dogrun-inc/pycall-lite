@@ -3,6 +3,19 @@
 require "spec_helper"
 
 RSpec.describe "pycall-lite (Ruby viewpoint)" do
+  ['nan', 'inf', '-inf'].each do |text|
+    it "preserves Python float #{text} as Ruby Float" do
+      result = PyCall.import_module(:builtins).float(text)
+
+      expect(result).to be_a(Float)
+      if text == 'nan'
+        expect(result.nan?).to eq(true)
+      else
+        expect(result.infinite?).to eq(text == 'inf' ? 1 : -1)
+      end
+    end
+  end
+
   [0, 42, -42, 2**31, 9007199254740991, -9007199254740991,
    9007199254740992, 9007199254740993, -9007199254740993, 2**100, -(2**100)].each do |value|
     it "passes Ruby integer #{value} to Python without precision loss" do

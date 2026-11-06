@@ -62,6 +62,8 @@ module PyCall
       Integer(py_obj.to_s)
     when 'number'
       val = py_obj.to_f
+      return val unless val.finite?
+
       val.to_i == val ? val.to_i : val
     when 'string'
       py_obj.to_s
