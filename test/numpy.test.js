@@ -39,6 +39,40 @@ describe("NumPy JavaScript integration", () => {
     delete globalThis.numpyResult;
   });
 
+  for (const replacement of ["lambda value: 99", "None"]) {
+    it(`uses builtins for scalar conversion when Python globals are ${replacement}`, () => {
+      vm.eval('require "numpy"');
+      // Only application globals are shadowed; the builtins module is unchanged.
+      pyodide.runPython(`
+int = ${replacement}
+float = ${replacement}
+complex = ${replacement}
+bool = ${replacement}
+`);
+      try {
+        vm.eval(`
+          integer = Numpy.int32.call(2)
+          floating = Numpy.float32.call(2)
+          complex = Numpy.complex64.call("2+3j")
+          boolean = Numpy.bool_.call(true)
+          false_boolean = Numpy.bool_.call(false)
+          JS.global[:numpyResult] = (
+            integer.is_a?(Integer) && integer == 2 &&
+            floating.is_a?(Float) && floating == 2.0 &&
+            complex.is_a?(Complex) && complex == Complex(2, 3) &&
+            boolean.equal?(true) && false_boolean.equal?(false)
+          )
+        `);
+        assert.equal(globalThis.numpyResult, true);
+      } finally {
+        pyodide.runPython(`
+for name in ('int', 'float', 'complex', 'bool'):
+    globals().pop(name, None)
+`);
+      }
+    });
+  }
+
   it("reuses the indexing helper across arrays and resets it on setup", () => {
     const originalRunPython = pyodide.runPython;
     let helperCreations = 0;
