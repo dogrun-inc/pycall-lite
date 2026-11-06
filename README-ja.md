@@ -301,6 +301,22 @@ end
 
 ---
 
+## NumPy 配列の変換
+
+Ruby の `require "numpy"` より先に、`await pyodide.loadPackage("numpy")` で NumPy を読み込んでください。
+`Numpy::NDArray#to_a` は Python NumPy の `tolist()` に合わせ、1次元以上の配列では Ruby の配列（多次元なら入れ子）を返し、
+0次元配列（形状 `()`）ではスカラー値を返します。一般的な Ruby の `to_a` と異なり、戻り値は常に Array とは限りません。
+浮動小数点 dtype の値は Ruby の Float として保持します。
+
+```ruby
+require "numpy"
+
+Numpy.asarray(1).to_a                      # => 1
+Numpy.asarray(1, dtype: :float64).to_a     # => 1.0
+Numpy.asarray([1]).to_a                    # => [1]
+Numpy.asarray([[1, 2]]).to_a               # => [[1, 2]]
+```
+
 ## テスト
 
 JavaScript 側:

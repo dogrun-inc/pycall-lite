@@ -1,9 +1,16 @@
-import { pycallRb, errorRb, importRb } from "./ruby_code.js";
+import { pycallRb, errorRb, importRb, numpyRb, numpyNdarrayRb } from "./ruby_code.js";
 
 // Initialize global pyodides Map
 if (!(globalThis as any).__pycall_pyodides__) {
   (globalThis as any).__pycall_pyodides__ = new Map();
 }
+
+if (!(globalThis as any).__pycall_virtual_files__) {
+  (globalThis as any).__pycall_virtual_files__ = new Map<string, string>();
+}
+
+(globalThis as any).__pycall_virtual_files__.set("numpy", numpyRb);
+(globalThis as any).__pycall_virtual_files__.set("numpy/ndarray", numpyNdarrayRb);
 
 /**
  * Sets up pycall-lite on the given RubyVM instance, connecting it with the Pyodide instance.
