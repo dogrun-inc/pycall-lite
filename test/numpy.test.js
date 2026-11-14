@@ -175,6 +175,35 @@ for name in ('int', 'float', 'complex', 'bool'):
     assert.equal(globalThis.numpyResult, true);
   });
 
+  for (const qualifiedFirst of [true, false]) {
+    it(`shares embedded require state with Kernel.require (qualified first: ${qualifiedFirst})`, () => {
+      vm.eval(`
+        raise "NumPy was loaded eagerly" if defined?(Numpy)
+        first_load = ${qualifiedFirst ? 'Kernel.require("numpy.rb")' : 'require "numpy"'}
+        second_load = ${qualifiedFirst ? 'require "numpy"' : 'Kernel.require("numpy.rb")'}
+        JS.global[:numpyResult] = first_load && !second_load &&
+          !Kernel.require("numpy/ndarray") && Numpy.asarray([1])[0] == 1
+      `);
+      assert.equal(globalThis.numpyResult, true);
+
+      setupPyCall(vm, pyodide);
+      vm.eval(`
+        Kernel.require("set")
+        repeated = Kernel.require("set")
+        missing_raised = false
+        begin
+          Kernel.require("pycall_lite_missing_library_for_test")
+        rescue LoadError
+          missing_raised = true
+        end
+        JS.global[:numpyResult] = !Kernel.require("numpy") && !repeated &&
+          Set.new([1, 1, 2]).size == 2 && missing_raised &&
+          Kernel.private_method_defined?(:require)
+      `);
+      assert.equal(globalThis.numpyResult, true);
+    });
+  }
+
   it("returns a real Python ndarray from the Ruby wrapper to JavaScript", () => {
     vm.eval(`
       require "numpy"

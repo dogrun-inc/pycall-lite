@@ -437,4 +437,7 @@ module Kernel
       __pycall_lite_original_require__(name)
     end
   end
+
+  # Share the virtual loader with Kernel.require and keep bare require private.
+  module_function :require
 end
