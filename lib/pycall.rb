@@ -19,7 +19,12 @@ module PyCall
 
   # Reuses the indexing callable for this VM's current Pyodide instance.
   def self.python_index_reader
-    @python_index_reader ||= pyodide.call(:runPython, 'lambda obj, *items: obj[items[0] if len(items) == 1 else tuple(items)]')
+    @python_index_reader ||= pyodide.call(:runPython, <<~PY)
+      def _pycall_python_index_reader(obj, *items):
+          import builtins
+          return obj[items[0] if builtins.len(items) == 1 else builtins.tuple(items)]
+      _pycall_python_index_reader
+    PY
   end
 
   # Returns the Pyodide instance associated with this Ruby VM.

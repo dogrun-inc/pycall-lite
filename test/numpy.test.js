@@ -73,11 +73,41 @@ for name in ('int', 'float', 'complex', 'bool'):
     });
   }
 
+  for (const name of ["len", "tuple"]) {
+    for (const cached of [false, true]) {
+      it(`indexes arrays with shadowed ${name} ${cached ? "after" : "before"} caching`, () => {
+        vm.eval('require "numpy"');
+        if (cached) {
+          vm.eval('Numpy.asarray([1])[0]');
+        }
+        pyodide.runPython(`${name} = None`);
+        try {
+          vm.eval(`
+            vector = Numpy.asarray([1, 2])
+            matrix = Numpy.asarray([[3, 4], [5, 6]])
+            JS.global[:numpyResult] = (
+              vector[0] == 1 && vector[-1] == 2 && matrix[1, 0] == 5
+            )
+            begin
+              vector[9]
+              raise "expected an indexing error"
+            rescue PyCall::PythonError => error
+              raise unless error.message.include?("IndexError")
+            end
+          `);
+          assert.equal(globalThis.numpyResult, true);
+        } finally {
+          pyodide.runPython(`globals().pop('${name}', None)`);
+        }
+      });
+    }
+  }
+
   it("reuses the indexing helper across arrays and resets it on setup", () => {
     const originalRunPython = pyodide.runPython;
     let helperCreations = 0;
     pyodide.runPython = function (source, ...args) {
-      if (source.includes("lambda obj, *items: obj[")) {
+      if (source.includes("def _pycall_python_index_reader(")) {
         helperCreations += 1;
       }
       return originalRunPython.call(this, source, ...args);
