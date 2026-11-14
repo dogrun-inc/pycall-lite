@@ -101,6 +101,7 @@ module PyCall
   def self.numpy_scalar_kind(obj)
     @numpy_scalar_kind ||= pyodide.call(:runPython, <<~PY)
       def _pycall_numpy_scalar_kind(value):
+          import builtins
           import sys
           numpy = sys.modules.get('numpy')
           if numpy is not None:
@@ -110,7 +111,7 @@ module PyCall
                   ('complex', numpy.complexfloating),
                   ('bool', numpy.bool_),
               ):
-                  if isinstance(value, scalar_type):
+                  if builtins.isinstance(value, scalar_type):
                       return kind
           return ''
       _pycall_numpy_scalar_kind

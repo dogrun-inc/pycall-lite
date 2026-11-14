@@ -73,6 +73,34 @@ for name in ('int', 'float', 'complex', 'bool'):
     });
   }
 
+  for (const replacement of ["None", "lambda *args: False"]) {
+    it(`classifies objects with application-global isinstance set to ${replacement}`, () => {
+      vm.eval('require "numpy"');
+      pyodide.runPython(`isinstance = ${replacement}`);
+      try {
+        vm.eval(`
+          math = PyCall.import_module(:math)
+          integer = Numpy.int32.call(2)
+          floating = Numpy.float32.call(2)
+          complex = Numpy.complex64.call("2+3j")
+          array = Numpy.asarray([1, 2])
+          JS.global[:numpyResult] = (
+            math.sqrt(4) == 2 &&
+            integer.is_a?(Integer) && integer == 2 &&
+            floating.is_a?(Float) && floating == 2.0 &&
+            complex.is_a?(Complex) && complex == Complex(2, 3) &&
+            Numpy.bool_.call(true).equal?(true) &&
+            Numpy.bool_.call(false).equal?(false) &&
+            array.is_a?(Numpy::NDArray) && array[1] == 2
+          )
+        `);
+        assert.equal(globalThis.numpyResult, true);
+      } finally {
+        pyodide.runPython("globals().pop('isinstance', None)");
+      }
+    });
+  }
+
   for (const name of ["len", "tuple"]) {
     for (const cached of [false, true]) {
       it(`indexes arrays with shadowed ${name} ${cached ? "after" : "before"} caching`, () => {
