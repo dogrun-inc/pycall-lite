@@ -301,6 +301,13 @@ end
 
 ---
 
+## 接続の有効範囲
+
+Ruby VM の接続先は、最初に指定した Pyodide インスタンスに固定されます。同じ組み合わせでの
+`setupPyCall` の再実行は可能です。同じ VM に別の Pyodide インスタンスを指定すると、接続を変更する前に
+Error を送出します。別の Pyodide を使う場合は、新しい Ruby VM を作成してください。
+異なる VM と Pyodide の組み合わせは併存できます。
+
 ## NumPy 配列の変換
 
 Ruby の `require "numpy"` より先に、`await pyodide.loadPackage("numpy")` で NumPy を読み込んでください。

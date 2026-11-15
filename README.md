@@ -304,6 +304,13 @@ Ruby) are re-raised unchanged, preserving their original backtrace.
 
 ---
 
+## Connection lifetime
+
+A Ruby VM stays connected to its initial Pyodide instance. Calling `setupPyCall`
+again with the same pair is supported. Passing a different Pyodide instance for
+that VM throws an Error before changing the connection. Create a new Ruby VM to
+use another Pyodide instance; separate VM/Pyodide pairs can coexist.
+
 ## NumPy array conversion
 
 Load NumPy with `await pyodide.loadPackage("numpy")` before Ruby's `require "numpy"`.

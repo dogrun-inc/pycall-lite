@@ -49,6 +49,36 @@ describe("Ruby.wasm + Pyodide bootstrap", () => {
     assert.equal(globalThis.bootstrapResult, 1);
   });
 
+  it("rejects switching interpreters without changing the original connection", async () => {
+    const anotherPyodide = await loadPyodide();
+    await pyodide.loadPackage("numpy");
+    await anotherPyodide.loadPackage("numpy");
+    pyodide.runPython("import numpy; numpy.connection_marker = 11");
+    anotherPyodide.runPython("import numpy; numpy.connection_marker = 22");
+    const readConnection = (rubyVM) => {
+      rubyVM.eval(`
+        require "numpy"
+        array = Numpy.asarray([1, 2])
+        JS.global[:bootstrapResult] = Numpy.connection_marker + array[0]
+      `);
+      return globalThis.bootstrapResult;
+    };
+
+    assert.equal(readConnection(vm), 12);
+    const connectionCount = globalThis.__pycall_pyodides__.size;
+    assert.throws(() => setupPyCall(vm, anotherPyodide), /already connected to a different Pyodide instance/);
+    assert.equal(globalThis.__pycall_pyodides__.size, connectionCount);
+    assert.equal(readConnection(vm), 12);
+
+    setupPyCall(vm, pyodide);
+    assert.equal(readConnection(vm), 12);
+
+    const { vm: anotherVM } = await DefaultRubyVM(await getRubyModule());
+    setupPyCall(anotherVM, anotherPyodide);
+    assert.equal(readConnection(anotherVM), 23);
+    assert.equal(readConnection(vm), 12);
+  });
+
   it("registers callback factory required by Proc-to-JS conversion", () => {
     assert.equal(typeof globalThis.__pycall_make_callback__, "function");
 
