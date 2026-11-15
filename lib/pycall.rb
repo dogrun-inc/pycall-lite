@@ -424,7 +424,8 @@ module Kernel
   end
 
   def require(name)
-    key = name.to_s.sub(/\.rb\z/, '')
+    path = File.path(name)
+    key = path.sub(/\.rb\z/, '')
     registry = JS.global[:__pycall_virtual_files__]
 
     if registry.is_a?(JS::Object) && registry.typeof == 'object' && registry.call(:has, key) == true
@@ -436,7 +437,7 @@ module Kernel
       $LOADED_FEATURES << "#{key}.rb"
       true
     else
-      __pycall_lite_original_require__(name)
+      __pycall_lite_original_require__(path)
     end
   end
 

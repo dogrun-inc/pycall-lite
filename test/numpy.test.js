@@ -175,6 +175,41 @@ for name in ('int', 'float', 'complex', 'bool'):
     assert.equal(globalThis.numpyResult, true);
   });
 
+  for (const qualified of [true, false]) {
+    it(`accepts path-like require arguments (Kernel.require: ${qualified})`, () => {
+      vm.eval(`
+        path_class = Class.new do
+          def initialize(path)
+            @path = path
+          end
+          def to_path
+            @path
+          end
+        end
+        loader = ${qualified ? 'Kernel.method(:require)' : 'method(:require)'}
+        first = loader.call(path_class.new("numpy.rb"))
+        repeated = loader.call(path_class.new("numpy"))
+        loader.call(path_class.new("set"))
+        invalid_raised = false
+        begin
+          loader.call(Object.new)
+        rescue TypeError
+          invalid_raised = true
+        end
+        missing_raised = false
+        begin
+          loader.call(path_class.new("pycall_lite_missing_path_for_test"))
+        rescue LoadError
+          missing_raised = true
+        end
+        JS.global[:numpyResult] = first && !repeated &&
+          Numpy.asarray([1])[0] == 1 && Set.new([1, 1]).size == 1 &&
+          invalid_raised && missing_raised
+      `);
+      assert.equal(globalThis.numpyResult, true);
+    });
+  }
+
   for (const qualifiedFirst of [true, false]) {
     it(`shares embedded require state with Kernel.require (qualified first: ${qualifiedFirst})`, () => {
       vm.eval(`
