@@ -68,6 +68,8 @@ module PyCall
     when 'number'
       val = py_obj.to_f
       return val unless val.finite?
+      # Integer zero cannot retain the sign of floating-point negative zero.
+      return val if val.zero? && (1.0 / val).negative?
 
       val.to_i == val ? val.to_i : val
     when 'string'

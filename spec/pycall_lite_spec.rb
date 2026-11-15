@@ -3,6 +3,24 @@
 require "spec_helper"
 
 RSpec.describe "pycall-lite (Ruby viewpoint)" do
+  it "preserves Python negative zero as a signed Ruby Float" do
+    result = PyCall.import_module(:builtins).float('-0.0')
+
+    expect(result).to be_a(Float)
+    expect(result).to eq(0.0)
+    expect(1.0 / result).to eq(-Float::INFINITY)
+  end
+
+  it "retains integer normalization for positive zero and integral numbers" do
+    builtins = PyCall.import_module(:builtins)
+
+    [0, 2, -2].each do |value|
+      result = builtins.float(value.to_s)
+      expect(result).to be_a(Integer)
+      expect(result).to eq(value)
+    end
+  end
+
   [[2**100, 1], [1, 2**100], [-(2**100), -(2**100)],
    [2**100 + 1, -(2**100 + 1)]].each do |real, imag|
     it "passes Complex components #{real}, #{imag} through integer conversion" do

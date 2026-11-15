@@ -4,6 +4,22 @@ require "spec_helper"
 require "numpy"
 
 RSpec.describe Numpy do
+  [:float32, :float64, '>f8'].each do |dtype|
+    it "preserves negative zero through #{dtype} indexing, asscalar, and to_a" do
+      array = Numpy.asarray(['-0.0'], dtype: dtype)
+      matrix = Numpy.asarray([['-0.0']], dtype: dtype)
+      scalar = Numpy.asarray('-0.0', dtype: dtype)
+      results = [array[0], matrix[0, 0], Numpy.asscalar(array),
+                 array.to_a.first, matrix.to_a[0][0], scalar.to_a]
+
+      results.each do |result|
+        expect(result).to be_a(Float)
+        expect(result).to eq(0.0)
+        expect(1.0 / result).to eq(-Float::INFINITY)
+      end
+    end
+  end
+
   [:float32, :float64].each do |dtype|
     it "preserves NaN and infinities in nested #{dtype} to_a results" do
       array = Numpy.asarray([[Float::NAN, Float::INFINITY, -Float::INFINITY]], dtype: dtype)
