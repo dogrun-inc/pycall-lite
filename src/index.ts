@@ -1,16 +1,31 @@
-import { pycallRb, errorRb, importRb } from "./ruby_code.js";
+import { pycallRb, errorRb, importRb, numpyRb, numpyNdarrayRb } from "./ruby_code.js";
+
+// A Ruby VM's Python objects must always belong to the same interpreter.
+const vmConnections = new WeakMap<object, any>();
 
 // Initialize global pyodides Map
 if (!(globalThis as any).__pycall_pyodides__) {
   (globalThis as any).__pycall_pyodides__ = new Map();
 }
 
+if (!(globalThis as any).__pycall_virtual_files__) {
+  (globalThis as any).__pycall_virtual_files__ = new Map<string, string>();
+}
+
+(globalThis as any).__pycall_virtual_files__.set("numpy", numpyRb);
+(globalThis as any).__pycall_virtual_files__.set("numpy/ndarray", numpyNdarrayRb);
+
 /**
  * Sets up pycall-lite on the given RubyVM instance, connecting it with the Pyodide instance.
  * @param rubyVM The RubyVM instance from @ruby/wasm-wasi.
  * @param pyodide The Pyodide instance loaded via loadPyodide.
+ * @throws {Error} if the Ruby VM is already connected to another Pyodide instance.
  */
 export function setupPyCall(rubyVM: any, pyodide: any): void {
+  if (vmConnections.has(rubyVM) && vmConnections.get(rubyVM) !== pyodide) {
+    throw new Error("This Ruby VM is already connected to a different Pyodide instance. Create a new Ruby VM to use another Pyodide instance.");
+  }
+
   // Expose isPyProxy helper on pyodide instance if it doesn't exist (e.g. in node environments)
   if (typeof pyodide.isPyProxy === "undefined") {
     pyodide.isPyProxy = (obj: any) => {
@@ -68,5 +83,6 @@ export function setupPyCall(rubyVM: any, pyodide: any): void {
       $LOADED_FEATURES << "pycall/import.rb"
     end
   `);
+  vmConnections.set(rubyVM, pyodide);
 }
 export default setupPyCall;

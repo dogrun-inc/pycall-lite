@@ -58,7 +58,25 @@ class NeedsArg:
     delete globalThis.nilValue;
   });
 
+  it("preserves standard library require across repeated setup on the same VM", () => {
+    // beforeEach has already performed the first setup on this VM.
+    vm.eval(`
+      require "set"
+      JS.global[:testResult] = Set.new([1, 1, 2]).size == 2
+    `);
+    assert.equal(globalThis.testResult, true);
+
+    setupPyCall(vm, pyodide);
+
+    vm.eval(`
+      loaded_again = require "set"
+      JS.global[:testResult] = !loaded_again && Set.new([1, 1, 2]).size == 2
+    `);
+    assert.equal(globalThis.testResult, true);
+  });
+
   it("should support PyCall.import_module and basic function calls", async () => {
+    assert.equal(pyodide.runPython("'numpy' in __import__('sys').modules"), false);
     vm.eval(`
       require "pycall"
 
@@ -69,6 +87,7 @@ class NeedsArg:
     `);
 
     assert.equal(globalThis.testResult, 1);
+    assert.equal(pyodide.runPython("'numpy' in __import__('sys').modules"), false);
   });
 
   it("supports pyimport and pyfrom macros", () => {

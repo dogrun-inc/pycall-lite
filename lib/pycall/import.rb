@@ -39,11 +39,11 @@ module PyCall
                    mod.__send__(name)
                  end
 
-        define_singleton_method(alias_name) do |*args|
-          if args.empty?
+        define_singleton_method(alias_name) do |*args, **kwargs|
+          if args.empty? && kwargs.empty?
             py_obj
           else
-            mod.__send__(name, *args)
+            mod.__send__(name, *args, **kwargs)
           end
         end
       end
