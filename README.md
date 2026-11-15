@@ -10,6 +10,11 @@ math = PyCall.import_module("math")
 math.sin(math.pi / 4)
 ```
 
+v0.2.0 adds a Ruby NumPy interface inspired by
+[numpy.rb](https://github.com/red-data-tools/numpy.rb), including ndarray wrappers,
+dtype-aware scalar conversion, and conversion to Ruby Arrays. It supports the core
+(operations described below; full compatibility with the numpy.rb gem is not guaranteed.)
+
 ---
 
 ## Environment
@@ -42,8 +47,8 @@ Recommended dependency versions:
 
 `pycall-lite` is available via unpkg and jsDelivr.
 
-- `https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js`
-- `https://unpkg.com/pycall-lite@0.1.1/dist/index.js`
+- `https://cdn.jsdelivr.net/npm/pycall-lite@0.2.0/dist/index.js`
+- `https://unpkg.com/pycall-lite@0.2.0/dist/index.js`
 
 If you use jsDelivr, add an import map like this in your HTML.
 Adjust library versions as needed.
@@ -52,7 +57,7 @@ Adjust library versions as needed.
 <script type="importmap">
 {
 	"imports": {
-		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js",
+		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.2.0/dist/index.js",
 		"@ruby/wasm-wasi/dist/esm/browser.js": "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.9.3-2.9.4/dist/esm/browser.js",
 		"@bjorn3/browser_wasi_shim": "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js",
 		"pyodide": "https://cdn.jsdelivr.net/npm/pyodide@314.0.2/pyodide.mjs"
@@ -108,7 +113,7 @@ This is a minimal example. Adjust import paths to match your project layout.
 <script type="importmap">
 {
 	"imports": {
-		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js",
+		"pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.2.0/dist/index.js",
 		"@ruby/wasm-wasi/dist/esm/browser.js": "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.9.3-2.9.4/dist/esm/browser.js",
 		"@bjorn3/browser_wasi_shim": "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js",
 		"pyodide": "https://cdn.jsdelivr.net/npm/pyodide@314.0.2/pyodide.mjs"
@@ -254,8 +259,11 @@ M.py_json.dumps({a: 1})
 ### 8. Ruby -> Python type conversion
 
 Main conversions:
+
+- `Integer` -> JS Number within the safe-integer range, BigInt otherwise (preserves integer precision)
+- `Complex` -> Python complex; components use Python's floating-point precision
 - `Symbol` -> `String`
-- `Hash` -> JS Object (used as dict-like data on the Python side)
+- Positional `Hash` -> JS Object, exposed as a proxy on the Python side, not a native Python dict
 - `Array` -> JS Array
 - `Proc` -> JS callable from Python
 
@@ -266,13 +274,31 @@ payload = { key: [1, :two, true, nil] }
 converted = PyCall.ruby_to_js(payload)
 ```
 
+Python integers returned as JS BigInt become Ruby Integer without precision loss.
+Python complex and supported NumPy numeric/boolean scalars are converted to Ruby
+values. NaN, positive/negative infinity, and negative zero remain Float values.
+
+### 9. Keyword arguments
+
+Ruby keyword arguments are forwarded separately from positional arguments through
+callables, constructors, import helpers, and the NumPy interface.
+
+```ruby
+types = PyCall.import_module(:types)
+ns = types.SimpleNamespace.new(answer: 42)
+ns.answer # => 42
+```
+
+`fn.call({key: 1})` passes a positional JS object; `fn.call(key: 1)` passes a
+Python keyword argument. Use `**options` to pass a Hash as keywords.
+
 ---
 
 ## Key differences from pycall.rb
 
-- Runtime is Pyodide (WebAssembly), not CPython.
+- Python runs inside Pyodide (WebAssembly), rather than a native CPython shared library.
 - Preferred callable syntax is `obj.call(...)` rather than `obj.(...)`.
-- Full keyword argument compatibility (`x: 1`) is not guaranteed.
+- Positional Hashes cross the bridge as JS objects, rather than native Python dicts.
 - `without_gvl` and Python executable selection (`PYTHON` environment variable) are out of scope.
 
 ---
@@ -311,7 +337,45 @@ again with the same pair is supported. Passing a different Pyodide instance for
 that VM throws an Error before changing the connection. Create a new Ruby VM to
 use another Pyodide instance; separate VM/Pyodide pairs can coexist.
 
-## NumPy array conversion
+## NumPy (v0.2.0)
+
+### Setup and basic operations
+
+After creating `vm` and `pyodide` as in Quick Start, load the Python package before
+requiring the embedded Ruby wrapper. No separate Ruby `numpy` gem installation is needed.
+
+```js
+await pyodide.loadPackage("numpy");
+setupPyCall(vm, pyodide);
+vm.eval(`
+  require "numpy"
+  a = Numpy.asarray([[1, 2], [3, 4]], dtype: :float64)
+  JS.global[:numpyResult] = a[1, 0]
+`);
+console.log(globalThis.numpyResult); // => 3
+```
+
+```ruby
+require "numpy"
+
+a = Numpy.asarray([[1, 2], [3, 4]], dtype: :float64)
+a.is_a?(Numpy::NDArray)          # => true
+a[1, 0]                        # => 3.0
+a[-1, -1]                      # => 4.0
+a.to_a                         # => [[1.0, 2.0], [3.0, 4.0]]
+Numpy.mean(a)                  # => 2.5
+Numpy.mean(a, axis: 0).to_a      # => [2.0, 3.0]
+Numpy.mean(a, dtype: :int32)     # => 2
+Numpy.asscalar(Numpy.asarray([1], dtype: Numpy.float32)) # => 1.0
+Numpy.zeros(shape: [2]).to_a     # => [0.0, 0.0]
+Numpy::VERSION                  # Python NumPy version
+```
+
+Other attributes and functions are delegated to Python NumPy. For a zero-argument
+function, use `.call`, e.g. `a.tolist.call`. Invalid ndarray indices raise
+`PyCall::PythonError`. Ruby Range slicing and the full numpy.rb API are not guaranteed.
+
+### Array conversion
 
 Load NumPy with `await pyodide.loadPackage("numpy")` before Ruby's `require "numpy"`.
 `Numpy::NDArray#to_a` follows Python NumPy's `tolist()`: arrays with one or more
@@ -327,6 +391,17 @@ Numpy.asarray(1, dtype: :float64).to_a     # => 1.0
 Numpy.asarray([1]).to_a                    # => [1]
 Numpy.asarray([[1, 2]]).to_a               # => [[1, 2]]
 ```
+
+### Compatibility notes
+
+- Specify a dtype when its numeric type matters. Ruby `1.0` becomes JS Number `1`,
+  so `Numpy.asarray([1.0])` can infer an integer dtype. Use `dtype: :float64` to retain Float.
+- Direct `Numpy.float64.call(2)` can still become Ruby Integer because Pyodide
+  converts the result to a JS Number before the wrapper can inspect its dtype.
+  Float restoration is provided for ndarray indexing, `asscalar`, `mean`, and `to_a`.
+- `to_narray` requires the native `numo/narray` extension, which is not bundled or
+  provided by this WebAssembly setup. It raises an error when that dependency is unavailable;
+  use `to_a` for Ruby values.
 
 ## Tests
 
