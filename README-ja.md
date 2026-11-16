@@ -10,6 +10,10 @@ math = PyCall.import_module("math")
 math.sin(math.pi / 4)
 ```
 
+v0.2.0 では [numpy.rb](https://github.com/red-data-tools/numpy.rb) を参考にした NumPy インターフェースを追加しました。
+ndarray のラッパー、dtype に応じたスカラー変換、Ruby 配列への変換など、以下に示す主要な操作に対応します。
+（numpy.rb gem との完全互換を保証するものではありません。）
+
 ---
 
 ## 動作環境
@@ -42,8 +46,8 @@ math.sin(math.pi / 4)
 
 `pycall-lite` は unpkg/jsDelivr から参照できます。
 
-- `https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js`
-- `https://unpkg.com/pycall-lite@0.1.1/dist/index.js`
+- `https://cdn.jsdelivr.net/npm/pycall-lite@0.2.0/dist/index.js`
+- `https://unpkg.com/pycall-lite@0.2.0/dist/index.js`
 
 jsDelivr から参照する場合、以下のように HTML に書きます。
 各ライブラリのバージョンは適宜調整してください。
@@ -52,7 +56,7 @@ jsDelivr から参照する場合、以下のように HTML に書きます。
 <script type="importmap">
 {
   "imports": {
-    "pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js",
+    "pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.2.0/dist/index.js",
     "@ruby/wasm-wasi/dist/esm/browser.js": "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.9.3-2.9.4/dist/esm/browser.js",
     "@bjorn3/browser_wasi_shim": "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js",
     "pyodide": "https://cdn.jsdelivr.net/npm/pyodide@314.0.2/pyodide.mjs"
@@ -108,7 +112,7 @@ npm install pycall-lite
 <script type="importmap">
 {
   "imports": {
-    "pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.1.1/dist/index.js",
+    "pycall-lite": "https://cdn.jsdelivr.net/npm/pycall-lite@0.2.0/dist/index.js",
     "@ruby/wasm-wasi/dist/esm/browser.js": "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.9.3-2.9.4/dist/esm/browser.js",
     "@bjorn3/browser_wasi_shim": "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js",
     "pyodide": "https://cdn.jsdelivr.net/npm/pyodide@314.0.2/pyodide.mjs"
@@ -254,8 +258,11 @@ M.py_json.dumps({a: 1})
 ### 8. Ruby -> Python の型変換
 
 主な変換:
+
+- `Integer` -> JS の安全整数範囲内は Number、範囲外は BigInt（整数の精度を保持）
+- `Complex` -> Python complex（成分の精度は Python の浮動小数点精度に従う）
 - `Symbol` -> `String`
-- `Hash` -> JS Object (Python 側では dict 相当として利用)
+- 位置引数の `Hash` -> JS Object（Python 側ではプロキシとして扱われ、ネイティブの dict にはならない）
 - `Array` -> JS Array
 - `Proc` -> Python から呼び出せる JS callable
 
@@ -266,13 +273,30 @@ payload = { key: [1, :two, true, nil] }
 converted = PyCall.ruby_to_js(payload)
 ```
 
+Python の整数が JS BigInt として返る場合は、精度を失わず Ruby の Integer に変換します。
+Python complex と対応する NumPy の数値・真偽値スカラーも Ruby の値に変換します。
+NaN・正負の Infinity・負のゼロは Float として保持します。
+
+### 9. キーワード引数
+
+Ruby のキーワード引数は位置引数と区別して、callable、コンストラクタ、import ヘルパー、NumPy に転送します。
+
+```ruby
+types = PyCall.import_module(:types)
+ns = types.SimpleNamespace.new(answer: 42)
+ns.answer # => 42
+```
+
+`fn.call({key: 1})` は位置引数の JS オブジェクトを、`fn.call(key: 1)` は Python のキーワード引数を渡します。
+Hash をキーワード引数として渡す場合は `**options` を使います。
+
 ---
 
 ## pycall.rb との主な差分
 
-- 実行基盤が CPython ではなく Pyodide (WebAssembly) です。
+- ネイティブの CPython 共有ライブラリではなく、Pyodide (WebAssembly) 内の Python を使います。
 - Python callable の呼び出し記法は `obj.(...)` ではなく `obj.call(...)` が中心です。
-- キーワード引数 (`x: 1`) の完全互換は未保証です。
+- 位置引数の Hash は、Python のネイティブな dict ではなく JS オブジェクトとして渡します。
 - `without_gvl` や Python 実行ファイル選択 (`PYTHON` 環境変数) は対象外です。
 
 ---
@@ -308,7 +332,45 @@ Ruby VM の接続先は、最初に指定した Pyodide インスタンスに固
 Error を送出します。別の Pyodide を使う場合は、新しい Ruby VM を作成してください。
 異なる VM と Pyodide の組み合わせは併存できます。
 
-## NumPy 配列の変換
+## NumPy（v0.2.0）
+
+### 準備と基本操作
+
+クイックスタートの手順で `vm` と `pyodide` を作成し、埋め込みの Ruby ラッパーを require する前に
+Python の NumPy パッケージを読み込みます。Ruby の `numpy` gem を別途インストールする必要はありません。
+
+```js
+await pyodide.loadPackage("numpy");
+setupPyCall(vm, pyodide);
+vm.eval(`
+  require "numpy"
+  a = Numpy.asarray([[1, 2], [3, 4]], dtype: :float64)
+  JS.global[:numpyResult] = a[1, 0]
+`);
+console.log(globalThis.numpyResult); // => 3
+```
+
+```ruby
+require "numpy"
+
+a = Numpy.asarray([[1, 2], [3, 4]], dtype: :float64)
+a.is_a?(Numpy::NDArray)          # => true
+a[1, 0]                        # => 3.0
+a[-1, -1]                      # => 4.0
+a.to_a                         # => [[1.0, 2.0], [3.0, 4.0]]
+Numpy.mean(a)                  # => 2.5
+Numpy.mean(a, axis: 0).to_a      # => [2.0, 3.0]
+Numpy.mean(a, dtype: :int32)     # => 2
+Numpy.asscalar(Numpy.asarray([1], dtype: Numpy.float32)) # => 1.0
+Numpy.zeros(shape: [2]).to_a     # => [0.0, 0.0]
+Numpy::VERSION                  # Python NumPy のバージョン
+```
+
+その他の属性や関数は Python NumPy に委譲します。引数なしの関数は `a.tolist.call` のように `.call` で呼び出します。
+不正な ndarray の添字は `PyCall::PythonError` になります。
+Ruby の Range によるスライスや、numpy.rb の全 API との互換は保証していません。
+
+### 配列の変換
 
 Ruby の `require "numpy"` より先に、`await pyodide.loadPackage("numpy")` で NumPy を読み込んでください。
 `Numpy::NDArray#to_a` は Python NumPy の `tolist()` に合わせ、1次元以上の配列では Ruby の配列（多次元なら入れ子）を返し、
@@ -323,6 +385,15 @@ Numpy.asarray(1, dtype: :float64).to_a     # => 1.0
 Numpy.asarray([1]).to_a                    # => [1]
 Numpy.asarray([[1, 2]]).to_a               # => [[1, 2]]
 ```
+
+### 互換性の注意点
+
+- 数値型が重要な場合は dtype を指定してください。Ruby の `1.0` は JS Number の `1` になるため、
+  `Numpy.asarray([1.0])` は整数 dtype と推定される場合があります。Float を保持するには `dtype: :float64` を指定します。
+- `Numpy.float64.call(2)` は、ラッパーが dtype を確認する前に Pyodide が JS Number に変換するため、
+  Ruby の Integer になる場合があります。ndarray の添字アクセス、`asscalar`、`mean`、`to_a` では Float の補正を行います。
+- `to_narray` が必要とするネイティブ拡張 `numo/narray` は同梱されておらず、この WebAssembly 構成では提供していません。
+  依存ライブラリが読み込めない場合はエラーになります。Ruby の値への変換には `to_a` を使ってください。
 
 ## テスト
 

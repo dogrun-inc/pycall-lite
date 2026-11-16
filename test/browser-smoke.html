@@ -95,8 +95,9 @@
       <section class="card">
         <h1>pycall-lite Browser Smoke Test</h1>
         <p>
-          This page initializes Pyodide + Ruby.wasm, loads <code>lib/pycall.rb</code>
-          and <code>lib/pycall/import.rb</code>, and executes core + macro API checks.
+          This page initializes Pyodide + Ruby.wasm using the built package and
+          checks core APIs, import macros, type conversion, and NumPy.
+          Run <code>npm run build</code> and serve the repository over HTTP before opening this page.
         </p>
         <button id="run">Run Smoke Test</button>
         <p id="summary"></p>
@@ -107,6 +108,7 @@
     <script type="module">
       import { DefaultRubyVM } from "../node_modules/@ruby/wasm-wasi/dist/esm/browser.js";
       import { loadPyodide } from "../node_modules/pyodide/pyodide.mjs";
+      import { setupPyCall } from "../dist/index.js";
 
       const $run = document.getElementById("run");
       const $summary = document.getElementById("summary");
@@ -133,40 +135,19 @@
         $run.disabled = true;
 
         try {
+          delete globalThis.smoke_results;
           log("[1/6] Loading Pyodide...");
           const pyodide = await loadPyodide({
             indexURL: new URL("../node_modules/pyodide/", import.meta.url).href,
           });
 
-          log("[2/6] Loading Ruby.wasm...");
+          log("[2/6] Loading NumPy...");
+          await pyodide.loadPackage("numpy");
+
+          log("[3/6] Loading Ruby.wasm...");
           const { vm } = await initRubyVM();
 
-          log("[3/6] Loading Ruby sources...");
-          const pycallRbUrl = new URL("../lib/pycall.rb", import.meta.url);
-          const pycallRb = await fetch(pycallRbUrl).then((r) => r.text());
-          const importRbUrl = new URL("../lib/pycall/import.rb", import.meta.url);
-          const importRb = await fetch(importRbUrl).then((r) => r.text());
-
-          globalThis.__pycall_pyodides__ ||= new Map();
-          const vmId =
-            globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
-          globalThis.__pycall_pyodides__.set(vmId, pyodide);
-
-          vm.eval(pycallRb);
-          vm.eval(`
-            unless $LOADED_FEATURES.include?("pycall.rb")
-              $LOADED_FEATURES << "pycall"
-              $LOADED_FEATURES << "pycall.rb"
-            end
-          `);
-          vm.eval(importRb);
-          vm.eval(`
-            PyCall.init_vm_id("${vmId}")
-            unless $LOADED_FEATURES.include?("pycall/import.rb")
-              $LOADED_FEATURES << "pycall/import"
-              $LOADED_FEATURES << "pycall/import.rb"
-            end
-          `);
+          setupPyCall(vm, pyodide);
 
           log("[4/6] Preparing Python fixtures...");
           await pyodide.runPythonAsync(`
@@ -236,6 +217,25 @@ data = {"a": 1}
             callback = proc { |x| x * 2 }
             proc_wrap_ok = callback.is_a?(Proc)
 
+            require "numpy"
+            numpy_array = Numpy.asarray([[1, 2], [3, 4]], dtype: :float64)
+            numpy_index_ok = numpy_array.is_a?(Numpy::NDArray) &&
+              numpy_array[1, 0].is_a?(Float) && numpy_array[1, 0] == 3.0
+            numpy_values = numpy_array.to_a
+            numpy_to_a_ok = numpy_values == [[1.0, 2.0], [3.0, 4.0]] &&
+              numpy_values.flatten.all? { |value| value.is_a?(Float) }
+            numpy_mean_ok = Numpy.mean(numpy_array) == 2.5 &&
+              Numpy.mean(numpy_array, axis: 0).to_a == [2.0, 3.0]
+            numpy_scalar = Numpy.asscalar(Numpy.asarray([1], dtype: :float32))
+            numpy_scalar_ok = numpy_scalar.is_a?(Float) && numpy_scalar == 1.0 &&
+              Numpy.asarray(1).to_a == 1
+            numpy_error_ok = false
+            begin
+              numpy_array[9, 0]
+            rescue PyCall::PythonError => error
+              numpy_error_ok = error.message.include?("IndexError")
+            end
+
             JS.global[:smoke_results] = {
               sin_ok: sin_ok,
               attr_ok: attr_ok,
@@ -248,13 +248,20 @@ data = {"a": 1}
               bool_conversion_ok: bool_conversion_ok,
               nil_conversion_ok: nil_conversion_ok,
               primitive_ok: primitive_ok,
-              proc_wrap_ok: proc_wrap_ok
+              proc_wrap_ok: proc_wrap_ok,
+              numpy_index_ok: numpy_index_ok,
+              numpy_to_a_ok: numpy_to_a_ok,
+              numpy_mean_ok: numpy_mean_ok,
+              numpy_scalar_ok: numpy_scalar_ok,
+              numpy_error_ok: numpy_error_ok
             }
           `);
 
           const r = globalThis.smoke_results;
-          log(`[6/6] Core API results: sin=${r?.sin_ok}, attr=${r?.attr_ok}, index=${r?.index_ok}, pyimport=${r?.pyimport_ok}, alias=${r?.pyimport_alias_ok}, pyfrom=${r?.pyfrom_ok}`);
-          log(`[7/7] Type conversion: array_access=${r?.array_access_ok}, dict_access=${r?.dict_access_ok}, bool=${r?.bool_conversion_ok}, nil=${r?.nil_conversion_ok}, primitive=${r?.primitive_ok}, proc=${r?.proc_wrap_ok}`);
+          log("[6/6] Results:");
+          log(`Core API: sin=${r?.sin_ok}, attr=${r?.attr_ok}, index=${r?.index_ok}, pyimport=${r?.pyimport_ok}, alias=${r?.pyimport_alias_ok}, pyfrom=${r?.pyfrom_ok}`);
+          log(`Type conversion: array_access=${r?.array_access_ok}, dict_access=${r?.dict_access_ok}, bool=${r?.bool_conversion_ok}, nil=${r?.nil_conversion_ok}, primitive=${r?.primitive_ok}, proc=${r?.proc_wrap_ok}`);
+          log(`NumPy: indexing=${r?.numpy_index_ok}, to_a=${r?.numpy_to_a_ok}, mean=${r?.numpy_mean_ok}, scalars=${r?.numpy_scalar_ok}, errors=${r?.numpy_error_ok}`);
 
           const passed =
             r?.sin_ok &&
@@ -268,12 +275,17 @@ data = {"a": 1}
             r?.bool_conversion_ok &&
             r?.nil_conversion_ok &&
             r?.primitive_ok &&
-            r?.proc_wrap_ok;
+            r?.proc_wrap_ok &&
+            r?.numpy_index_ok &&
+            r?.numpy_to_a_ok &&
+            r?.numpy_mean_ok &&
+            r?.numpy_scalar_ok &&
+            r?.numpy_error_ok;
           if (!passed) {
             throw new Error("One or more smoke checks failed.");
           }
 
-          $summary.textContent = "PASS: Browser smoke test completed successfully (Step 5 type conversion included).";
+          $summary.textContent = "PASS: Core APIs, type conversion, and NumPy checks completed successfully.";
           $summary.className = "ok";
         } catch (err) {
           log(`ERROR: ${err?.stack || err}`);
