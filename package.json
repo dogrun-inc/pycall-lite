@@ -1,6 +1,6 @@
 {
   "name": "pycall-lite",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "A PyCall-like bridge between Ruby.wasm and Pyodide for browser and Node.js",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -9,11 +9,13 @@
     "dist/*.d.ts",
     "README.md",
     "README-ja.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "type": "module",
   "scripts": {
     "build": "node scripts/embed_ruby.js && tsc",
+    "prepack": "npm run build",
     "test:npm": "npm run build && node --test test/connection.test.js test/pycall.test.js test/error.test.js test/numpy.test.js",
     "test:rspec": "npm run build && rspec-wasm",
     "test": "npm run test:npm && npm run test:rspec"
