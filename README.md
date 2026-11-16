@@ -13,7 +13,7 @@ math.sin(math.pi / 4)
 v0.2.0 adds a Ruby NumPy interface inspired by
 [numpy.rb](https://github.com/red-data-tools/numpy.rb), including ndarray wrappers,
 dtype-aware scalar conversion, and conversion to Ruby Arrays. It supports the core
-(operations described below; full compatibility with the numpy.rb gem is not guaranteed.)
+operations described below (full compatibility with the numpy.rb gem is not guaranteed).
 
 ---
 
